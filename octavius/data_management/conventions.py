@@ -34,7 +34,7 @@ VALID_KERNELS = frozenset(["CUBIC", "QUINTIC"])
 VALID_VIEW_AXES = frozenset({"X", "Y", "Z"})
 VALID_GAS_CRITERIA = frozenset({"COLD", "STARFORMING", "COLD_OR_STARFORMING", "DENSE_ONLY"})
 ALWAYS_POSITIVE = frozenset(
-    {"b", "velocity_factor", "n_io_chunks", "interpolation_bins", "aperture_size", "virial_factors", "density_radii"}
+    {"b", "velocity_factor", "n_io_chunks", "interpolation_bins", "aperture_size", "virial_factors"}
 )
 
 VALID_ENTRIES: dict[str, frozenset[str]] = {
@@ -119,7 +119,6 @@ class OctaviusConfig:
     )
     aperture_size: list[int] = field(default_factory=lambda: [30])
     virial_factors: list[int] = field(default_factory=lambda: [200, 500, 2500])
-    density_radii: list[int] = field(default_factory=lambda: [300, 1000, 3000])
     halo_centre: str = "MIN_POT"
 
     b: float = 0.02

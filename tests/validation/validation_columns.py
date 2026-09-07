@@ -27,12 +27,6 @@ NEVER_NAN = {
         "properties/core/com_vel_baryon",
         "properties/core/BoverT_baryon",
         "properties/core/kappa_rot_baryon",
-        "properties/environment/local_mass_density_300kpc",
-        "properties/environment/local_mass_density_1000kpc",
-        "properties/environment/local_mass_density_3000kpc",
-        "properties/environment/local_number_density_300kpc",
-        "properties/environment/local_number_density_1000kpc",
-        "properties/environment/local_number_density_3000kpc",
         "properties/environment/mass_total_30kpc",
     ],
 }

@@ -22,6 +22,8 @@ import numpy as np
 import h5py
 import numba
 from scipy.spatial.transform import Rotation
+from scipy.spatial import KDTree
+from scipy.sparse import csr_array
 
 # internal imports
 from ..data_management import (
@@ -286,6 +288,8 @@ class OctaviusAnalyser:
         group_indices: list[int]
             The indices into the Octavius catalogue of the groups to run on. You should only pass indices corresponding
             to one type of group (e.g. only galaxies or only haloes).
+        group_type: str
+            The type of group the indices are specified for: ``galaxies`` or ``haloes``.
 
         Returns
         -------
@@ -332,6 +336,76 @@ class OctaviusAnalyser:
         )
         return results
 
+    def compute_local_densities(
+        self, group_indices: list[int] | np.ndarray, radii: list[float], group_type: str
+    ) -> StageResult:
+        """
+        Computes the local number and mass density for the groups (of one group type) specified by group_indices.
+
+        Parameters
+        ----------
+        group_indices: list[int]
+            The indices into the Octavius catalogue of the groups to run on. You should only pass indices corresponding
+            to one type of group (e.g. only galaxies or only haloes).
+        group_type: str
+            The type of group the indices are specified for: ``galaxies`` or ``haloes``.
+
+        Returns
+        -------
+        result: StageResult
+            A StageResult dataclass from which output columns, aligned to group_indices, can be accessed.
+        """
+        if group_type not in self._collections:
+            raise KeyError(f"Group type '{group_type}' is not present in the catalogue.")
+        group_indices = np.sort(np.asarray(group_indices, dtype=np.int64))  # sort to avoid h5py problems
+
+        stage = self._internals.stages["properties_local_environment"]
+        self._verify_dependencies(stage=stage, group_type=group_type)
+        data = self._collections[group_type]._data["properties"]
+        columns = {}
+
+        if group_type == "haloes":
+            positions = data["core/minpot_pos"][:] if "core/minpot_pos" in data else data["core/com_pos_total"][:]
+            masses = data["core/mass_total"][:]
+        else:
+            positions = data["core/com_pos_baryon"][:]
+            masses = data["core/mass_baryon"][:]
+
+        n_groups = len(masses)
+
+        r_max = np.max(radii)
+        tree = KDTree(data=positions, boxsize=self._catalogue.sim_info("boxsize", to_units="kpc"))
+        sdm = tree.sparse_distance_matrix(
+            other=tree, max_distance=r_max, output_type="coo_array"
+        )  # if your scipy is pre-1.18, use "coo_matrix"
+        vol_prefactor = 4.0 / 3.0 * np.pi
+
+        for radius in radii:
+            in_range = (
+                sdm.data <= radius
+            )  # NOTE: the matrix does include self-distance 0 as we passed other=tree ^, I verified this manually with test data
+            valid_array = np.ones(in_range.sum())
+            adj = csr_array(
+                arg1=(valid_array, (sdm.row[in_range], sdm.col[in_range])), shape=(n_groups, n_groups)
+            )  # unhelpful argument name
+
+            volume = vol_prefactor * radius**3
+            local_mass_density = (adj @ masses / volume)[
+                group_indices
+            ]  # adjacency matrix algebra gets the quantities in a vectorised way
+            local_number_density = (adj @ np.ones(shape=n_groups) / volume)[group_indices]
+
+            columns[f"local_mass_density_{radius:.0f}kpc"] = local_mass_density
+            columns[f"local_number_density_{radius:.0f}kpc"] = local_number_density
+
+        result = StageResult(
+            group_type=group_type,
+            group_indices=group_indices,
+            columns=columns,
+        )
+
+        return result
+
     def compute_core_properties(self, group_indices: list[int] | np.ndarray, group_type: str) -> StageResult:
         """
         Runs the core properties routine for the groups (of one group type) specified by group_indices.
@@ -341,6 +415,8 @@ class OctaviusAnalyser:
         group_indices: list[int]
             The indices into the Octavius catalogue of the groups to run on. You should only pass indices corresponding
             to one type of group (e.g. only galaxies or only haloes).
+        group_type: str
+            The type of group the indices are specified for: ``galaxies`` or ``haloes``.
 
         Returns
         -------

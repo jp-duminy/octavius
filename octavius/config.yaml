@@ -48,7 +48,6 @@ properties:
   # NOTE: please pass these as lists, even if single-valued
   aperture_size:    [30]                # kpc
   virial_factors:   [200, 500, 2500]    # factor * critical density
-  density_radii:    [300, 1000, 3000]   # kpc
   halo_centre:      MIN_POT
 
 

@@ -87,6 +87,9 @@ def mock_catalogue(
     result_phot = analyser.compute_photometry(group_indices=[0], keep_spectra=True, orientation="side-on")
     assert len(result_phot.columns) > 0
 
+    result_local = analyser.compute_local_densities(group_indices=[0], radii=[300, 1000, 3000], group_type="galaxies")
+    assert len(result_local.columns) > 0
+
     cat.close()
     assert isinstance(analyser, OctaviusAnalyser)
 

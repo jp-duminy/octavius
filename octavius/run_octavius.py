@@ -24,6 +24,7 @@ from time import perf_counter
 # other packages
 import numpy as np
 import numba
+import psutil
 
 # internal package imports
 from .data_management import (
@@ -154,12 +155,13 @@ def execute_pipeline(
     halo_assignments: HaloAssignments,
     global_subhalo_info: SubhaloInformation,
     timings: dict[str, float],
+    memory: dict[str, int],
 ) -> RankPackedData:
     """
     Executes each toggled stage of the Octavius pipeline.
     """
     sim = reader.simulation_attributes
-    with timer("Load particles", timings=timings):
+    with timer("Load particles", timings=timings, memory=memory, comm=reader.comm):
         particles = build_particle_stores(
             reader=reader, internals=internals, halo_assignments=halo_assignments, process_ptypes=config.process_ptypes
         )
@@ -168,9 +170,9 @@ def execute_pipeline(
     )  # this is done locally and is safe, not worth optimising (though an elegant solution is always welcome)
 
     if config.stages.get("find_galaxies", True):
-        with timer("Load FOF6D columns", timings=timings):
+        with timer("Load FOF6D columns", timings=timings, memory=memory, comm=reader.comm):
             load_stage_columns(particles=particles, reader=reader, stage=internals.stages["find_galaxies"])
-        with timer("Find Galaxies", timings=timings):
+        with timer("Find Galaxies", timings=timings, memory=memory, comm=reader.comm):
             fof6d_result = find_galaxies(particles=particles, simulation=sim, config=config, constants=constants)
 
     else:  # other functions have guards built for no galaxies so we set IDs equal to the sentinel value
@@ -178,7 +180,7 @@ def execute_pipeline(
             particles[ptype]["GalID"] = np.full(particles[ptype].n_particles, -1, dtype=np.int64)
         fof6d_result = FOF6DResult.empty()
 
-    with timer("Build GroupStores", timings=timings):
+    with timer("Build GroupStores", timings=timings, memory=memory, comm=reader.comm):
         groups: dict[str, GroupStore] = {}
         groups["haloes"] = build_halo_store(  # must build halo store first
             particles=particles,
@@ -197,7 +199,7 @@ def execute_pipeline(
                 group_kind=internals.group_types["galaxies"]["kind"],
             )
 
-    with timer("Prepare pipeline", timings=timings):
+    with timer("Prepare pipeline", timings=timings, memory=memory, comm=reader.comm):
         simulation_data = SimulationData(simulation=sim, constants=constants, particles=particles, groups=groups)
         assign_membership(simulation_data=simulation_data, subhalo_info=subhalo_info, config=config)
 
@@ -213,9 +215,9 @@ def execute_pipeline(
     }
 
     for stage_idx, stage in enumerate(ordered_stages):
-        with timer(f"Load {stage.name} data", timings=timings):
+        with timer(f"Load {stage.name} data", timings=timings, memory=memory, comm=reader.comm):
             load_stage_columns(particles=particles, reader=reader, stage=stage)
-        with timer(f"Run {stage.name}", timings=timings):
+        with timer(f"Run {stage.name}", timings=timings, memory=memory, comm=reader.comm):
             stage_dispatch[stage.name](simulation_data=simulation_data, config=config)
         release_stage_columns(particles=particles, current_idx=stage_idx, ordered_stages=ordered_stages)
 
@@ -224,7 +226,7 @@ def execute_pipeline(
     else:
         particle_indices = {ptype: np.arange(len(particles[ptype]), dtype=np.int64) for ptype in particles}
 
-    with timer("Save data", timings=timings):
+    with timer("Save data", timings=timings, memory=memory, comm=reader.comm):
         membership_arrays = construct_membership_arrays(
             data=simulation_data, internals=internals, indices=particle_indices
         )
@@ -374,6 +376,7 @@ def analyse_snapshot(
 
     # analysis pipeline
     timings: dict[str, float] = {}
+    memory: dict[str, int] = {}
     packed_data = execute_pipeline(
         config=config,
         internals=internals,
@@ -382,6 +385,7 @@ def analyse_snapshot(
         halo_assignments=rank_halo_assignments,
         global_subhalo_info=subhalo_info,
         timings=timings,
+        memory=memory,
     )
 
     catalogue_path = output_catalogue_path(snapshot_path=config.snapshot_path, output_dir=config.output_dir)
@@ -396,8 +400,10 @@ def analyse_snapshot(
     # diagnostics
     if comm is not None:
         all_timings = comm.gather(timings, root=0)
+        all_memory = comm.gather(memory, root=0)
     else:
         all_timings = [timings]
+        all_memory = [memory]
 
     if rank == 0:
         write_catalogue_headers(
@@ -428,6 +434,14 @@ def analyse_snapshot(
                 keep_logs=config.keep_logs,
             )
 
+        # NOTE: for RASTI paper, store the diagnostic plots
+        np.savez(
+        catalogue_path.with_name(catalogue_path.stem + "_diagnostics.npz"),  # need to use the + because _diagnostic is 'invalid suffix'
+        timings=np.array([list(t.values()) for t in all_timings]),  # convert the dict values to a list (they are insertion-ordered)
+        memory=np.array([list(m.values()) for m in all_memory]),   
+        stages=np.array(list(all_timings[0].keys())),               
+        )
+
     return catalogue_path
 
 
@@ -455,15 +469,24 @@ def generate_config(output_dir: Path = Path(".")) -> None:
 
 
 @contextmanager
-def timer(label: str, timings: dict[str, float]) -> Generator[None, None, None]:
+def timer(
+    label: str, 
+    timings: dict[str, float], 
+    memory: dict[str, float] | None = None,
+    comm: MPI.Comm | None = None,
+) -> Generator[None, None, None]:
     """
     Logs the time taken for a stage (reduced version of validation suite time_and_memory)
     """
     logger = get_logger()
+    if comm is not None:
+        comm.Barrier()
     t0 = perf_counter()
     yield
     elapsed = perf_counter() - t0
     timings[label] = elapsed
+    if memory is not None:
+        memory[label] = psutil.Process().memory_info().rss
     logger.info(f"{label} completed in {elapsed:.1f}s.")
 
 

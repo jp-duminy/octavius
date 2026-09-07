@@ -5,8 +5,8 @@ Standard attenuation curve formulae which compute the optical depth tau as a fun
 Top of file: attenuation laws
 Bottom of file: extinction laws.
 
-The convention I have gone with in the dust law functions is their bounds key off the values and units of what the paper
-defines, e.g. for Calzetti we use angstrom whereas Cardelli we use x = um^-1.
+The convention I have gone with in the dust law functions is their bounds key off the values
+and units of what the paper defines, e.g. for Calzetti we use angstrom whereas Cardelli we use x = um^-1.
 
 All functions expect to receive a wavelengths array in angstrom. They convert internally to match the coefficients and
 conventions of their respective papers for readability and correctedness.
@@ -41,7 +41,8 @@ def _calzetti_ir(
     R_v: float = 4.05,
 ) -> float:
     """
-    Returns k(lambda) from the Calzetti IR attenuation law (defined between 6.3um and 22um) evaluated at the input wavelength (in angstrom).
+    Returns k(lambda) from the Calzetti IR attenuation law (defined between 6.3um and 22um)
+    evaluated at the input wavelength (in angstrom).
     """
     wavelength_um = 1e4 / wavelength
     k_lambda = 2.659 * (-1.857 + (1.040 * wavelength_um)) + R_v
@@ -55,7 +56,8 @@ def _calzetti_uv(
     R_v: float = 4.05,
 ) -> float:
     """
-    Returns k(lambda) from the Calzetti UV attenuation law (defined between 0.12um and 6.3um) evaluated at the input wavelength (in angstrom).
+    Returns k(lambda) from the Calzetti UV attenuation law (defined between 0.12um and 6.3um)
+    evaluated at the input wavelength (in angstrom).
     """
     wavelength_um = 1e4 / wavelength
     k_lambda = (
@@ -68,7 +70,9 @@ def _calzetti_uv(
 @njit(cache=True)
 def atten_calzetti(wavelengths: np.ndarray) -> np.ndarray:
     """
-    Attenuate based on the starburst curve described by Calzetti et al. (2000). The law is defined between 0.12um and 22um, so extrapolations to the far-UV and near-IR are made using the slope at the edge of either domain. Returns:
+    Attenuate based on the starburst curve described by Calzetti et al. (2000). The law is
+    defined between 0.12um and 22um, so extrapolations to the far-UV and near-IR are made
+    using the slope at the edge of either domain. Returns:
 
     - taus: the optical depth at each wavelength.
 
@@ -121,7 +125,8 @@ def _conroy_ir(
     R_v: float = 3.1,
 ) -> float:
     """
-    Returns a(lambda) + b(lambda)/R_v from the Conroy IR attenuation law (defined between 0.3um^-1 and 1.1um^-1) evaluated at x.
+    Returns a(lambda) + b(lambda)/R_v from the Conroy IR attenuation law (defined between 0.3um^-1 and 1.1um^-1)
+    evaluated at x.
     """
     a = 0.574 * (x**1.61)
     b = -0.527 * (x**1.61)
@@ -136,7 +141,8 @@ def _conroy_optical(
     R_v: float = 3.1,
 ) -> float:
     """
-    Returns a(lambda) + b(lambda)/R_v from the Conroy optical/near-IR attenuation law (defined between 1.1um^-1 and 3.3um^-1) evaluated at x.
+    Returns a(lambda) + b(lambda)/R_v from the Conroy optical/near-IR attenuation law
+    (defined between 1.1um^-1 and 3.3um^-1) evaluated at x.
     """
     y = x - 1.82  # NOTE: in the paper they define y = x - 1.82 where x is in um^-1
 
@@ -172,7 +178,8 @@ def _conroy_mid_uv(
     R_v: float = 3.1,
 ) -> float:
     """
-    Returns a(lambda) + b(lambda)/R_v from the Conroy near/mid UV attenuation law (defined between 3.3um^-1 and 5.9um^-1) evaluated at x.
+    Returns a(lambda) + b(lambda)/R_v from the Conroy near/mid UV attenuation law
+    (defined between 3.3um^-1 and 5.9um^-1) evaluated at x.
     """
     fa = (3.3 / x) ** 6 * (
         -0.0370 + (0.0469 * f_bump) - (0.601 * f_bump / R_v) + (0.542 / R_v)
@@ -193,7 +200,8 @@ def _conroy_far_uv(
     R_v: float = 3.1,
 ) -> float:
     """
-    Returns a(lambda) + b(lambda)/R_v from the Conroy far-UV attenuation law (defined between 5.9um^-1 and 8.0um^-1) evaluated at x.
+    Returns a(lambda) + b(lambda)/R_v from the Conroy far-UV attenuation law
+    (defined between 5.9um^-1 and 8.0um^-1) evaluated at x.
     """
     fa = -0.0447 * (x - 5.9) ** 2 - 0.00978 * (x - 5.9) ** 3  # this is the paper variable name
     fb = 0.213 * (x - 5.9) ** 2 + 0.121 * (x - 5.9) ** 3  # this is the paper variable name
@@ -209,7 +217,9 @@ def _conroy_far_uv(
 @njit(cache=True)
 def atten_conroy(wavelengths: np.ndarray, f_bump: float = 0.6) -> np.ndarray:  # pg192 of Conroy recommends f_bump = 0.6
     """
-    Attenuate based on the Milky Way extinction curve with arbitrary UV bump (parametrised by f_bump) described by Conroy et al. (2010). This is defined from 0.3um^-1 to 8.0um^-1. At f_bump = 0, there is no bump; 1.0 returns the standard Milky Way UV bump. Returns:
+    Attenuate based on the Milky Way extinction curve with arbitrary UV bump
+    (parametrised by f_bump) described by Conroy et al. (2010). This is defined from 0.3um^-1 to
+    8.0um^-1. At f_bump = 0, there is no bump; 1.0 returns the standard Milky Way UV bump. Returns:
 
     - taus: the optical depth at each wavelength.
 
@@ -251,7 +261,8 @@ def _cardelli_ir(
     R_v: float = 3.1,
 ) -> float:
     """
-    Returns a(lambda) + b(lambda)/R_v from the Cardelli IR extinction law (defined between 0.3um^-1 and 1.1um^-1) evaluated at x.
+    Returns a(lambda) + b(lambda)/R_v from the Cardelli IR extinction law
+    (defined between 0.3um^-1 and 1.1um^-1) evaluated at x.
     """
     a = 0.574 * (x**1.61)
     b = -0.527 * (x**1.61)
@@ -266,7 +277,8 @@ def _cardelli_optical(
     R_v: float = 3.1,
 ) -> float:
     """
-    Returns a(lambda) + b(lambda)/R_v from the Cardelli optical extinction law (defined between 1.1um^-1 and 3.3um^-1) evaluated at x.
+    Returns a(lambda) + b(lambda)/R_v from the Cardelli optical extinction law
+    (defined between 1.1um^-1 and 3.3um^-1) evaluated at x.
     """
     y = x - 1.82  # NOTE: this is the paper convention
 
@@ -301,7 +313,8 @@ def _cardelli_mid_uv(
     R_v: float = 3.1,
 ) -> float:
     """
-    Returns a(lambda) + b(lambda)/R_v from the Cardelli mid-UV extinction law (defined between 3.3um^-1 and 5.9um^-1) evaluated at x.
+    Returns a(lambda) + b(lambda)/R_v from the Cardelli mid-UV extinction law
+    (defined between 3.3um^-1 and 5.9um^-1) evaluated at x.
     """
     a = 1.752 - (0.316 * x) - (0.104 / ((x - 4.67) ** 2 + 0.341))
     b = -3.09 + (1.825 * x) + (1.206 / ((x - 4.62) ** 2 + 0.263))
@@ -317,7 +330,8 @@ def _cardelli_far_uv(
     R_v: float = 3.1,
 ) -> float:
     """
-    Returns a(lambda) + b(lambda)/R_v from the Cardelli far-UV extinction law (defined between 5.9um^-1 and 8.0um^-1) evaluated at x.
+    Returns a(lambda) + b(lambda)/R_v from the Cardelli far-UV extinction law
+    (defined between 5.9um^-1 and 8.0um^-1) evaluated at x.
     """
     fa = -0.04473 * (x - 5.9) ** 2 - 0.009779 * (x - 5.9) ** 3
     fb = 0.2130 * (x - 5.9) ** 2 + 0.1207 * (x - 5.9) ** 3
@@ -336,7 +350,8 @@ def _cardelli_xuv(
     R_v: float = 3.1,
 ) -> float:
     """
-    Returns a(lambda) + b(lambda)/R_v from the Cardelli XUV extinction law (defined between 8.0um^-1 and 10.0um^-1) evaluated at x.
+    Returns a(lambda) + b(lambda)/R_v from the Cardelli XUV extinction law
+    (defined between 8.0um^-1 and 10.0um^-1) evaluated at x.
     """
     y = x - 8.0
 
@@ -351,7 +366,8 @@ def _cardelli_xuv(
 @njit(cache=True)
 def extinct_cardelli(wavelengths: np.ndarray) -> np.ndarray:
     """
-    Extinct based on the Milky Way extinction curve described by Cardelli, Clayton and Mathis (1989), which is defined from 0.3um^-1 to 10um^-1.
+    Extinct based on the Milky Way extinction curve described by Cardelli,
+    Clayton and Mathis (1989), which is defined from 0.3um^-1 to 10um^-1.
 
     Cardelli, Clayton and Mathis 1989 ApJ 345 245 (doi: 10.1086/167900)
     """
@@ -391,7 +407,8 @@ def _pei_extinction(
     """
     Returns tau from the general Pei (1992) Drude profile extinction formula.
 
-    Terms in order represent "background" (BKG); far-ultraviolet (FUV); far-infrared (FIR) extinctions; 2175 angstrom; 9.7 um; and 18 um extinction features.
+    Terms in order represent "background" (BKG); far-ultraviolet (FUV);
+    far-infrared (FIR) extinctions; 2175 angstrom; 9.7 um; and 18 um extinction features.
     """
     lambda_v = 0.55  # pg 131 (and obsastro)
     xi = 0.0  # (greek letter xi)

@@ -1,7 +1,16 @@
 """
 
 Octavius internal data structures for the pipeline.
-This is a modularised version of the old DataManager, its functionality divided amongst smaller objects.
+
+
+This is a modularised version of the old DataManager, its functionality divided amongst smaller, specialised
+classes and dataclasses. These include:
+
+- ParticleStore: dict-like container for particle-level data
+- GroupStore: dict-like container for group-level data
+
+Generally, you will aggregate quantities from the particle stores into a group store. The two are bound through the
+membership columns, which can be accessed through get_particle_csr(ptype).
 
 """
 

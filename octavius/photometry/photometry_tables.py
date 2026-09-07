@@ -133,7 +133,8 @@ def generate_photometry_table(
     oversample: tuple[int, int] = (2, 2),
 ) -> None:
     """
-    Generates a bespoke .hdf5 file containing all SSP and filter curve data needed for the Octavius photometry pipeline. The config field photometry_table should be pointed at this file to be parsed at runtime.
+    Generates a bespoke .hdf5 file containing all SSP and filter curve data needed for the Octavius photometry
+    pipeline. The config field photometry_table should be pointed at this file to be parsed at runtime.
 
     Parameters
     ----------
@@ -171,7 +172,9 @@ def generate_photometry_table_from_sp(
     oversample: tuple[int, int] = (2, 2),
 ) -> None:
     """
-    Uses an existing python FSPS StellarPopulation (sp) object to generate a bespoke .hdf5 file containing all SSP and filter curve data needed for the Octavius photometry pipeline. The config field photometry_table should be pointed at this file to be parsed at runtime.
+    Uses an existing python FSPS StellarPopulation (sp) object to generate a bespoke .hdf5
+    file containing all SSP and filter curve data needed for the Octavius photometry pipeline.
+    The config field photometry_table should be pointed at this file to be parsed at runtime.
 
     Parameters
     ----------
@@ -260,7 +263,9 @@ def generate_photometry_table_from_sp(
 
 def read_filter_names(table_path: Path) -> tuple[list[str], np.ndarray]:
     """
-    Opens the photometry table and reads the filter names and their effective wavelengths. This is so load_internals() can handle the output column expansion when users input a shorthand (e.g. sdss expands to sdss_{bands}, which then all get parsed into outputs in internals.yaml)
+    Opens the photometry table and reads the filter names and their effective wavelengths.
+    This is so load_internals() can handle the output column expansion when users input a
+    shorthand (e.g. sdss expands to sdss_{bands}, which then all get parsed into outputs in internals.yaml)
     """
     with h5py.File(table_path, "r") as f:
         names = list(f["filters"].keys())
@@ -275,7 +280,9 @@ def resolve_band_names(
     effective_wavelengths: np.ndarray,
 ) -> list[str]:
     """
-    Matches and expands the user-requested bands in the photometry section of the config. This means users can do 'sdss' and get all sdss bands, for example; engineered against fsps.list_filters(), all of which are present in our photometry table. Returns:
+    Matches and expands the user-requested bands in the photometry section of the config.
+    This means users can do 'sdss' and get all sdss bands, for example; engineered against
+    fsps.list_filters(), all of which are present in our photometry table. Returns:
 
     - filters_to_process: resolved list of filters to pull out of PhotometryTable, automatically deduplicated
     """

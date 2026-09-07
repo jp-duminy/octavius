@@ -10,7 +10,7 @@ To divide haloes equally amongst ranks, it is not sufficient to simply bin them 
 
 An empirically-adjusted relation is therefore used to bin haloes across ranks. The weights are tuned as follows:
 
-$W_{FOF6D} = N_{stars}**{1.2} + N_{gas}$
+$W_{FOF6D} = N_{stars}^{1.2} + N_{gas}$
 
 $W_{AP} = N_{stars} + N_{gas} + N_{dm}$
 

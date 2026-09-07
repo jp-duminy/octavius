@@ -116,7 +116,10 @@ def construct_sparse_cell_linked_list(
     - unique_cells: the flat cell idx of each cell
     - grid_dims: the extent of the grid in each direction
 
-    The reason we want this to be sparse is because, while a cell linked-list is more naturally suited to the geometry of FOF, there must still be some consideration of density; the naïve implementation is sensitive to lone particles at the edges of haloes which can affect the entire grid structure.
+    The reason we want this to be sparse is because, while a cell linked-list is more
+    naturally suited to the geometry of FOF, there must still be some consideration of
+    density; the naïve implementation is sensitive to lone particles at the edges of
+    haloes which can affect the entire grid structure.
     """
     n_particles = len(pos)
     pos_min, pos_max = _find_min_max(array=pos)
@@ -347,7 +350,8 @@ def compute_local_velocity_dispersions(
 @njit(cache=True)
 def cubic_spline_kernel(r: float, linking_length: float) -> float:
     """
-    Evaluates the one-dimensional SPH cubic spline kernel, returning the weight W; necessary for the velocity dispersion.
+    Evaluates the one-dimensional SPH cubic spline kernel, returning the
+    weight W; necessary for the velocity dispersion.
 
     (JJ Monaghan 1992, doi: 10.1146/annurev.aa.30.090192.002551)
     """
@@ -410,7 +414,8 @@ def _get_cell_index(cx: int, cy: int, cz: int, grid_dims: np.ndarray) -> int:
 @njit(cache=True)
 def _find_min_max(array: np.ndarray) -> tuple[np.ndarray, ...]:
     """
-    The equivalent of np.min/max on an (n, 3) array with arg axis=0, which (as of 02/07/26) is not supported in numba. Returns two length-3 arrays:
+    The equivalent of np.min/max on an (n, 3) array with arg axis=0, which
+    (as of 02/07/26) is not supported in numba. Returns two length-3 arrays:
 
     - min_vals: the minimum value along x, y, z axes
     - max_vals: the maximum value along x, y, z axes

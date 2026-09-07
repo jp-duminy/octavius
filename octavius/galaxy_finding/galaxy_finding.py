@@ -3,7 +3,6 @@
 The galaxy finding pipeline. This file includes the python-level bindings to the algorithm in
 fof6d_algorithm.py, along with the pre-processing and data storage functions.
 
-
 """
 
 # type checking (semantic)

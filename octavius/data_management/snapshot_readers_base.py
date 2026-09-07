@@ -2,6 +2,10 @@
 
 File for the SnapshotReader base classes. These should only ever be inherited, not instantiated.
 
+The base classes define the machinery for how data is loaded, so this is where you will find the
+implementations of the MPI methods defined in parallel_reads.py; this allows the supported simulation formats
+to be easily extended by inheriting a reader and having all the MPI trickery handled for you.
+
 """
 
 # type checking

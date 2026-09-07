@@ -4,7 +4,7 @@
 Please see the [catalogues](../guide/catalogues.md) documentation for information.
 :::
 
-Membership arrays are stored in the catalogue, and provide mappings between related groups and their constituent particles in the raw snapshot. These datasets are accessible with the `get_membership()`, `get_particle_indices()`, and `get_galaxies()` (for haloes) methods.
+Membership arrays are stored in the catalogue, and provide mappings between related groups and their constituent particles in the raw snapshot. These datasets are accessible with the methods `get_membership()`, `get_particle_indices()`, and, for haloes, `get_galaxies()` and `get_subhaloes()`.
 
 :::{note}
 Group-level index arrays are indices into catalogue-level data, unless specified otherwise.
@@ -12,7 +12,7 @@ Group-level index arrays are indices into catalogue-level data, unless specified
 
 ## Halo Membership
 
-- `field_halo_index`: the index into `halo_data` of the parent field halo (-1 for field haloess).
+- `field_halo_index`: the index into `halo_data` of the parent field halo (-1 for field haloes).
 
 - `parent_halo_index`: the index into `halo_data` of the immediate parent (sub)halo, equal to `field_halo_index` if the parent is the field halo (-1 for field haloes).
 

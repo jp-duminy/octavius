@@ -42,6 +42,10 @@ The analyser currently supports three standalone stages:
 - `properties_ptype_specific`
 - `photometry`
 
+And one standalone computation:
+
+- `local_densities`
+
 You will need to specify the catalogue indices of the groups of interest via `group_indices`. The groups must all be of the same group type, which is specified by `group_type`. The analyser will return a `StageResult` dataclass, from which the dataset columns can be accessed.
 
 ```python
@@ -67,7 +71,7 @@ Standalone photometry provides enhanced functionality over the pipeline version:
 Rotations can be applied using the `orientation` parameter. `face-on` or `side-on` shorthands can be used; alternatively, you can pass a bespoke rotation matrix. The requested rotation is applied to all galaxies. To return spectra, you can enable the `keep_spectra` flag (increases memory footprint). This will cause `spectra`, `spectra_nodust`, and `wavelengths` to appear in the result dataclass: these have units of $L_\odot \, Hz^{-1}$ and $\AA$ respectively.
 
 ```python
-analyser = oc.build_analyser(snapshot_path=snapshot_path, catalogue=catalogue, config=config)
+analyser = oc.build_analyser(catalogue=catalogue, config=config)
 galaxies_of_interest = [0, 1, 3, 22, 47]  # or array
 
 side_on_result = analyser.compute_photometry(
@@ -93,21 +97,43 @@ Line-of-sight extinction is computed along the axis specified by `viewing_axis` 
 Photometry will need to use gas from the parent field haloes for dust extinction. This is handled internally, but it means `halo_data` must be present in the HDF5 catalogue for standalone photometry to work. 
 :::
 
+(usage-local-densities)=
+### Usage: Local Densities
+
+The `OctaviusAnalyser` provides a method called `compute_local_densities()` for spatial queries of the local mass and number densities of groups at the specified `radii`, which should be in comoving $\mathrm{kpc}$. This will construct a [k-d tree](https://en.wikipedia.org/wiki/K-d_tree) over the centre positions of groups belonging to the specified `group_type`, and return:
+
+- `local_mass_density_{radius}kpc`: the local mass density in $M_\odot \, \mathrm{kpc}^{-3}$ for each $\mathrm{kpc}$ `radius` in `radii`.
+
+- `local_number_density_{radius}kpc`: the local number density in $\mathrm{kpc}^{-3}$ for each $\mathrm{kpc}$ `radius` in `radii`.
+
+```python
+analyser = oc.build_analyser(catalogue=catalogue, config=config)
+galaxies_of_interest = [0, 1, 3, 22, 47]  # or array
+
+local_result = analyser.compute_local_densities(
+    group_indices=galaxies_of_interest, 
+    radii=[300, 1000, 3000], 
+    group_type="galaxies"
+)
+
+local_mass_densities = local_result["local_mass_density_1000kpc"]
+```
+
 ## Updating Config Parameters
 
 A convenience method on the analyser, `update_config()`, is provided to update the stored OctaviusConfig between runs. This enables you to rerun the analysis with different config parameters.
 
 ```python
-analyser = oc.build_analyser(snapshot_path=snapshot_path, catalogue=catalogue, config=config)
+analyser = oc.build_analyser(catalogue=catalogue, config=config)
 galaxies_of_interest = [0, 1, 3, 22, 47]  # or array
 
 analyser.update_config(extinction_law="COMPOSITE")
 composite_properties = analyser.compute_photometry(
-    group_indices=gal_indices,
+    group_indices=galaxies_of_interest,
 )
 
 analyser.update_config(extinction_law="CARDELLI")
 cardelli_properties = analyser.compute_photometry(
-    group_indices=gal_indices,
+    group_indices=galaxies_of_interest,
 )
 ```

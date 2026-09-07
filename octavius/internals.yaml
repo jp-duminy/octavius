@@ -89,8 +89,6 @@ stages:
       all: [pos, mass]
       gas: [mass_HI, mass_H2]
     outputs:
-      - columns: ["local_mass_density_{radius}kpc", "local_number_density_{radius}kpc"]
-        over: {radius: from_config:density_radii}
       - columns: ["mass_{ptype}_{aperture}kpc"]
         over:
           ptype: [gas, star, dm, bh, HI, H2, total]
@@ -421,20 +419,6 @@ output_columns:
     unit:        "Msun"
     a_exp:       0
     description: "Total mass within the specified kpc aperture."
-
-  "local_mass_density_{radius}kpc":
-    over:        {radius: from_config:density_radii}
-    dtype:       float64
-    unit:        "Msun/kpc**3"
-    a_exp:       -3
-    description: "Local mass density (smoothing over specified kpc radius)."
-
-  "local_number_density_{radius}kpc":
-    over:        {radius: from_config:density_radii}
-    dtype:       float64
-    unit:        "1/kpc**3"
-    a_exp:       -3
-    description: "Local number density (smoothing over specified kpc radius)."
 
   "mag_abs_{band}":
     over:        {band: from_config:bands}

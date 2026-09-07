@@ -17,7 +17,6 @@ if TYPE_CHECKING:
 # other packages
 import numpy as np
 from scipy.spatial import KDTree  # remember, always pass boxsize
-from scipy.sparse import csr_array
 
 # internal imports
 from ..log import get_logger
@@ -39,15 +38,6 @@ def run_local_environment(simulation_data: SimulationData, config: OctaviusConfi
     logger.info(f"Running local environment properties: {galaxies.n_groups} members")
     sim = simulation_data.simulation
 
-    density_results = compute_local_densities(
-        pos=galaxies["com_pos_baryon"],
-        mass=galaxies["mass_baryon"],
-        n_groups=galaxies.n_groups,
-        boxsize=sim.boxsize,
-        radii=config.density_radii,
-    )
-    galaxies.write_batch(results=density_results)
-
     for aperture in config.aperture_size:
         aperture_results = compute_galaxy_aperture_masses(
             particles=simulation_data.particles,
@@ -60,45 +50,6 @@ def run_local_environment(simulation_data: SimulationData, config: OctaviusConfi
         galaxies.write_batch(results=aperture_results)
 
     logger.info("Local environment properties computed.")
-
-
-def compute_local_densities(  # FIXME: not MPI-invariant
-    pos: np.ndarray,
-    mass: np.ndarray,
-    n_groups: int,
-    boxsize: float,
-    radii: list[float],
-) -> dict[str, np.ndarray]:
-    """
-    Computes local mass and number densities for groups, returning a dict of:
-
-    - local_mass_density_{r} for r in {radii}
-    - local_number_density_{r}
-    """
-    results: dict[str, np.ndarray] = {}
-    r_max = np.max(radii)
-    tree = KDTree(data=pos, boxsize=boxsize)
-    sdm = tree.sparse_distance_matrix(
-        other=tree, max_distance=r_max, output_type="coo_array"
-    )  # if your scipy is pre-1.18, use "coo_matrix"
-
-    for radius in radii:
-        in_range = (
-            sdm.data <= radius
-        )  # NOTE: the matrix does include self-distance 0 as we passed other=tree ^, I verified this manually with test data
-        valid_array = np.ones(in_range.sum())
-        adj = csr_array(
-            arg1=(valid_array, (sdm.row[in_range], sdm.col[in_range])), shape=(n_groups, n_groups)
-        )  # unhelpful argument name
-
-        local_mass = adj @ mass  # adjacency matrix algebra gets the quantities in a vectorised way
-        local_number_count = adj @ np.ones(shape=n_groups)
-        volume = 4.0 / 3.0 * np.pi * radius**3
-
-        results[f"local_mass_density_{radius:.0f}kpc"] = local_mass / volume
-        results[f"local_number_density_{radius:.0f}kpc"] = local_number_count / volume
-
-    return results
 
 
 def compute_galaxy_aperture_masses(  # FIXME: aperture masses of galaxies at edge of halo are less accurate as particles are split across ranks

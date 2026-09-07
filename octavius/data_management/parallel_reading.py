@@ -186,7 +186,7 @@ def generate_rank_halo_assignments(
 
     halo_to_rank = np.full(shape=n_valid_haloes, fill_value=-1, dtype=np.int64)
 
-    halo_weights = compute_halo_weights(
+    halo_weights, total_counts = compute_halo_weights(
         ptype_counts=ptype_counts,
         valid_halo_indices=all_valid_hids,
         stages=config.stages,
@@ -204,7 +204,7 @@ def generate_rank_halo_assignments(
         halo_to_rank[all_valid_hids[idx]] = lightest
         rank_loads[lightest] += halo_weights[idx]
 
-    return halo_to_rank
+    return halo_to_rank, halo_weights, total_counts, rank_loads
 
 
 def compute_halo_weights(
@@ -219,6 +219,7 @@ def compute_halo_weights(
     star_counts = ptype_counts.get("star", zeros)[valid_halo_indices]
     gas_counts = ptype_counts.get("gas", zeros)[valid_halo_indices]
     dm_counts = ptype_counts.get("dm", zeros)[valid_halo_indices]
+    bh_counts = ptype_counts.get("bh", zeros)[valid_halo_indices]
 
     weights = np.zeros(
         len(valid_halo_indices), dtype=np.float64
@@ -236,7 +237,9 @@ def compute_halo_weights(
     if stages.get("photometry", False):
         weights += (star_counts + gas_counts) ** 1.1
 
-    return weights
+    total_counts = star_counts + gas_counts + dm_counts + bh_counts
+
+    return weights, total_counts
 
 
 def generate_slabs(

@@ -302,7 +302,7 @@ def analyse_snapshot(
     if rank == 0:  # no need for comm.Barrier() here as scatter does it inherently
         all_halo_assignments = halo_source.read_halo_ids(ptypes=reader.available_ptypes)
         subhalo_info = halo_source.read_subhalo_info()
-        halo_to_rank = generate_rank_halo_assignments(
+        halo_to_rank, halo_weights, total_counts, rank_loads = generate_rank_halo_assignments(
             halo_assignments=all_halo_assignments, config=config, n_ranks=size
         )
         original_halo_ids = all_halo_assignments.original_field_ids
@@ -313,6 +313,9 @@ def analyse_snapshot(
 
     else:  # avoid MPI syntax error
         halo_to_rank = None
+        halo_weights = None
+        total_counts = None
+        rank_loads = None
         subhalo_info = None
         original_halo_ids = None
         halo_to_rank_length = 0
@@ -439,7 +442,11 @@ def analyse_snapshot(
         catalogue_path.with_name(catalogue_path.stem + "_diagnostics.npz"),  # need to use the + because _diagnostic is 'invalid suffix'
         timings=np.array([list(t.values()) for t in all_timings]),  # convert the dict values to a list (they are insertion-ordered)
         memory=np.array([list(m.values()) for m in all_memory]),   
-        stages=np.array(list(all_timings[0].keys())),               
+        stages=np.array(list(all_timings[0].keys())),
+        halo_weights=halo_weights,
+        total_counts=total_counts,
+        rank_loads=rank_loads,
+        halo_to_rank=halo_to_rank,
         )
 
     return catalogue_path

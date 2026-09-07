@@ -154,7 +154,7 @@ def test_rank_halo_assignments() -> None:
         cores_per_rank=1,
     )
 
-    halo_to_rank = generate_rank_halo_assignments(
+    halo_to_rank, _, _, _ = generate_rank_halo_assignments(
         halo_assignments=halo_assignments, config=test_config, n_ranks=n_ranks
     )
 

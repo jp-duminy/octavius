@@ -66,7 +66,7 @@ Others:
 - `beta`: the UV spectral slope $\beta$ with dust extinction
 - `beta_nodust`: the UV spectral slope $\beta$ (no dust extinction)
 
-If running standalone photometry, three new datasets will exist:
+If running standalone photometry, three new datasets will exist if you enable the `keep_spectra` flag:
 
 - `spectra`: SEDs in $L_\odot \, Hz^{-1}$ with dust extinction
 - `spectra_nodust`: SEDs in $L_\odot \, Hz^{-1}$ (no dust extinction)

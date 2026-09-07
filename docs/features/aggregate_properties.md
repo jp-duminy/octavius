@@ -31,19 +31,15 @@ This stage is the most heavy of the three. The 'core' properties are an assortme
 
 - `mass_{ptype}`: the mass.
 
-- `mass_HI`: the neutral hydrogen mass.
-
-- `mass_H2`: the molecular hydrogen mass.
-
 - `com_pos_{ptype}`: the centre-of-mass position vector.
 
 - `com_vel_{ptype}`: the centre-of-mass velocity vector.
 
-- `L_{ptype}`: the angular momentum vector $\hat{L}$.
+- `L_{ptype}`: the angular momentum vector $\vec{L}$.
 
-- `L_azimuth_{ptype}`: the azimuthal angle $\phi$ of $\hat{L}$.
+- `L_azimuth_{ptype}`: the azimuthal angle $\phi$ of $\vec{L}$.
 
-- `L_elevation_{ptype}`: the elevation angle $\theta$ of $\hat{L}$.
+- `L_elevation_{ptype}`: the elevation angle $\theta$ of $\vec{L}$.
 
 - `velocity_dispersion_{ptype}`: the mass-weighted velocity dispersion vector $\sigma$.
 
@@ -54,14 +50,6 @@ This stage is the most heavy of the three. The 'core' properties are an assortme
 - `radius_max_{ptype}`: the maximum member particle radius.
 
 ### Halo outputs
-
-- `minpot_pos_{ptype}`: the position vector of the particle at the minimum potential.
-
-- `minpot_vel_{ptype}`: the velocity vector of the particle at the minimum potential.
-
-:::{tip}
-The minimum potential is often more useful than the centre-of-mass for haloes, owing to the irregular shapes of FOF haloes.
-:::
 
 - `r200m`: the radius which encloses 200x the mean matter density $r_{200m}$.
 
@@ -78,6 +66,14 @@ The minimum potential is often more useful than the centre-of-mass for haloes, o
 - `r{factor}c`: the radii enclosing the factor of critical density (e.g. $r_{200c}$), where the factors are defined in the configuration file.
 
 - `m{factor}c`: the mass enclosed within `r{factor}c` (e.g. $m_{200c}$), where the factors are defined in the configuration file.
+
+- `minpot_pos_{ptype}`: the position vector of the particle at the minimum potential (only appears if `halo_centre` is `MIN_POT`).
+
+- `minpot_vel_{ptype}`: the velocity vector of the particle at the minimum potential (only appears if `halo_centre` is `MIN_POT`).
+
+:::{tip}
+The minimum potential is often more useful than the centre-of-mass for haloes, owing to the irregular shapes of FOF haloes.
+:::
 
 ### Galaxy outputs
 
@@ -99,6 +95,10 @@ This stage computes properties which only pertain to a specific particle type; t
 ### Per-group outputs
 
 Gas:
+
+- `mass_HI`: the neutral hydrogen mass.
+
+- `mass_H2`: the molecular hydrogen mass.
 
 - `sfr`: the total star forming rate.
 
@@ -145,30 +145,21 @@ Gas properties are also computed for the halo CGM, which is defined as being gas
 (local-environment-properties)=
 ## Local Environment Properties
 
-This stage runs for galaxies and computes the properties of their local environment. This stage currently has known limitations.
+This stage runs for galaxies and computes the properties of their local environment: currently, this is only the mass contained within a specified aperture radius from their centres-of-mass. Please see the `OctaviusAnalyser` {ref}`local densities documentation <usage-local-densities>` for information on how to compute local mass and number densities for groups.
 
 :::{warning}
 Aperture masses are slightly less accurate for galaxies at the edge of haloes, as they are computed using only in-halo particles.
 :::
 
-:::{warning}
-Local masses and densities are affected by the number of MPI ranks, as halo information is not accessible between ranks.
-:::
-
 ### Configurable Parameters
 
-- `aperture_size`: the radii in $kpc$ for which aperture masses are computed.
-
-- `density_radii`: the radii in $kpc$ at which local environment densities are computed.
+- `aperture_size`: the radii in $\mathrm{kpc}$ for which aperture masses are computed.
 
 ### Galaxy Outputs
 
-- `mass_{ptype}_{aperture}kpc`: the mass contained within the specified {aperture} in $kpc$, where the aperture sizes are defined in the configuration file. Do note the the `dm` mass in the aperture is also provided.
+- `mass_{ptype}_{aperture}kpc`: the mass contained within the specified {aperture} in $\mathrm{kpc}$, where the aperture sizes are defined in the configuration file. Do note the the `dm` mass in the aperture is also provided.
 
-- `mass_HI_{aperture}kpc`: the neutral hydrogen mass contained within the specified $kpc$ aperture.
+- `mass_HI_{aperture}kpc`: the neutral hydrogen mass contained within the specified $\mathrm{kpc}$ aperture.
 
-- `mass_H2_{aperture}kpc`: the molecular hydrogen mass contained within the specified $kpc$ aperture.
+- `mass_H2_{aperture}kpc`: the molecular hydrogen mass contained within the specified $\mathrm{kpc}$ aperture.
 
-- `local_mass_density_{radius}kpc`: the local mass density contained within the specified $kpc$ radius.
-
-- `local_number_density_{radius}kpc`: the local number density contained within the specified $kpc$ radius.

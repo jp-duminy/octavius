@@ -68,7 +68,8 @@ class OutputColumnMetadata:
 
 def load_internals(internals_filepath: Path, config: OctaviusConfig) -> Internals:
     """
-    Loads stage definitions from internals.yaml, validates output columns, and returns the Internals dataclass which contains resolved metadata/ordering from internals.yaml
+    Loads stage definitions from internals.yaml, validates output columns, and
+    returns the Internals dataclass which contains resolved metadata/ordering from internals.yaml
     """
     with open(internals_filepath, "r") as f:
         internals: dict[str, Any] = safe_load(f)
@@ -202,7 +203,8 @@ def load_stage_columns(
     stage: PipelineStage,
 ) -> None:
     """
-    Automatically loads data into the ParticleStores depending on what was declared for the stage in internals.yaml.
+    Automatically loads data into the ParticleStores depending on what was declared
+    for the stage in internals.yaml.
     """
     _load_columns(particles=particles, reader=reader, spec=stage.needs_particle_columns, optional=False)
     _load_columns(particles=particles, reader=reader, spec=stage.optional_particle_columns, optional=True)
@@ -214,7 +216,8 @@ def release_stage_columns(
     ordered_stages: list[PipelineStage],
 ) -> None:
     """
-    Releases data from ParticleStores automatically depending on the resolution of the stage dependency graph to free up memory.
+    Releases data from ParticleStores automatically depending on the resolution of the
+    stage dependency graph to free up memory.
     """
     current_needs = ordered_stages[current_idx].needs_particle_columns
     future_needs: dict[str, set[str]] = {}
@@ -314,7 +317,8 @@ def resolve_over(over: dict[str, list | str], config: OctaviusConfig) -> dict[st
 
 def expand_column_templates(outputs: list[str], over: dict[str, list[str]]) -> list[str]:
     """
-    Expands an output column template in internals.yaml if they have ptype or quantity-specific fields (e.g. mass_star_30kpc), returning a list.
+    Expands an output column template in internals.yaml if they have ptype or
+    quantity-specific fields (e.g. mass_star_30kpc), returning a list.
     """
     expanded: list[str] = []
 

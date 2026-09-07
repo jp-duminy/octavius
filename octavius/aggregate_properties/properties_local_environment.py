@@ -1,9 +1,8 @@
 """
 
-Properties related to a structure's local environment (number densities, aperture masses, etc.).
+Properties related to a structure's local environment (currently only aperture masses).
 
-# TODO: use MPI to make local densities globally-invariant; they are currently dependent on the number of ranks being run.
-Furthermore, the aperture masses are currently inaccurate for galaxies at the edge of a halo, because particles are split
+# TODO: the aperture masses are currently inaccurate for galaxies at the edge of a halo, because particles are split
 across ranks by halo and not spatially decomposed.
 
 """

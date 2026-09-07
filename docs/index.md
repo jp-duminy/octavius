@@ -29,9 +29,9 @@ hide-toc: true  # remove RHS sidebar
 <div style="margin-bottom: 3.0em;"></div>
 <div style="text-align: center;">
 
-**Version:** 0.9.2
+**Version:** 0.9.2.1
 
-**Useful Links:** | [Installation](getting_started/installation.md) | [Quickstart](getting_started/quickstart.md) | [Five-Minute Guide](getting_started/five_minute_guide.md) | [GitHub](https://github.com/jp-duminy/octavius)
+**Useful Links:** | [Installation](getting_started/installation.md) | [Quickstart](getting_started/quickstart.md) | [Five-Minute Guide](getting_started/five_minute_guide.md) | [GitHub](https://github.com/jp-duminy/octavius) | [What's New](https://github.com/jp-duminy/octavius/releases)
 
 </div>
 
@@ -41,8 +41,8 @@ hide-toc: true  # remove RHS sidebar
 
 Features include:
 
-- Support for [SWIFT](https://swift.strw.leidenuniv.nl/) & [GIZMO](http://www.tapir.caltech.edu/~phopkins/Site/GIZMO.html) snapshots
-- Support for [AHF](https://iopscience.iop.org/article/10.1088/0067-0049/182/2/608) and [HBT-HERONS](https://hbt-herons.strw.leidenuniv.nl/) halo catalogues
+- Support for [SWIFT](https://swift.strw.leidenuniv.nl/) (EAGLE, KIARA, COLIBRE), [SIMBA](https://ui.adsabs.harvard.edu/abs/2019MNRAS.486.2827D/abstract), and [TNG](https://www.tng-project.org/) snapshots
+- Support for [AHF](https://iopscience.iop.org/article/10.1088/0067-0049/182/2/608), [HBT-HERONS](https://hbt-herons.strw.leidenuniv.nl/) and [SUBFIND](https://www.tng-project.org/data/docs/specifications/#sec2b) halo catalogues
 - Snapshot-agnostic catalogues
 - Built-in galaxy finding with a 6D friends-of-friends algorithm
 - Computes over fifty properties for haloes and galaxies (including subhaloes)

@@ -1,6 +1,7 @@
 """
 
-Simple physics calculations which need to be done on read-in.
+Physics calculations which SnapshotReaders need to use for parsing format-specific
+data into the agnostic-expected format.
 
 """
 
@@ -23,22 +24,6 @@ from .data_structures import SimulationAttributes
 from ..log import get_logger
 
 logger = get_logger()
-
-
-def calculate_mean_interparticle_separation(
-    n_star: int,
-    n_gas: int,
-    boxsize: float,
-) -> float:
-    """
-    Computes the baryonic mean interparticle separation from the number of star and gas particles; black holes make up a small-enough subset of the box to be safely disregarded.
-
-    Returns the mean interparticle separation.
-    """
-    mis = boxsize / (n_star + n_gas) ** (1.0 / 3.0)
-    logger.debug(f"Mean baryonic interparticle separation: {mis:.2f}")
-
-    return mis
 
 
 def derive_simulation_attributes(
@@ -99,13 +84,6 @@ def derive_stellar_age(formation_time: np.ndarray, time_gyr: float, cosmology: F
     return time_gyr - cosmology.age(redshifts).to_value(u.Gyr)  # see astropy for integration details
 
 
-def calculate_hydrogen_number_density(rho_cgs: np.ndarray, constants: OctaviusConstants, XH: float) -> np.ndarray:
-    """
-    Calculates nH from the simulation parameters and user config.yaml.
-    """
-    return rho_cgs * XH / constants.PROTON_MASS_G
-
-
 def calculate_temperature(
     internal_energy: np.ndarray,
     electron_abundance: np.ndarray,
@@ -124,6 +102,22 @@ def calculate_temperature(
     temperature = mean_molecular_weight * (gamma - 1) * internal_energy / constants.BOLTZMANN_CGS
 
     return temperature
+
+
+def calculate_mean_interparticle_separation(
+    n_star: int,
+    n_gas: int,
+    boxsize: float,
+) -> float:
+    """
+    Computes the baryonic mean interparticle separation from the number of star and gas particles; black holes make up a small-enough subset of the box to be safely disregarded.
+
+    Returns the mean interparticle separation.
+    """
+    mis = boxsize / (n_star + n_gas) ** (1.0 / 3.0)
+    logger.debug(f"Mean baryonic interparticle separation: {mis:.2f}")
+
+    return mis
 
 
 @dataclass(frozen=True, slots=True)

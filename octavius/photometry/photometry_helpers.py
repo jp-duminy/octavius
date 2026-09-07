@@ -23,7 +23,9 @@ def extinct_madau(
     redshift: float,
 ) -> np.ndarray:
     """
-    Applies IGM extinction for redshifted wavelengths according to the formula described by Madau (1995). The form used here is the approximation described in the footnote of p21, which is claimed to be accurate to within 5% and is used as the standard formula in codes such as synphot. Returns:
+    Applies IGM extinction for redshifted wavelengths according to the formula described by Madau (1995).
+    The form used here is the approximation described in the footnote of p21, which is claimed to be
+    accurate to within 5% and is used as the standard formula in codes such as synphot. Returns:
 
     - transmission: exp(-tau) lying between [0, 1]
 
@@ -70,9 +72,11 @@ def build_interpolation_table(
     kernel_type: int,
 ) -> np.ndarray:
     """
-    Precomputes the kernel weight integral via numerical integration over the range of impact parameter values with n_bins controlling the granularity. Returns:
+    Precomputes the kernel weight integral via numerical integration over the range of
+    impact parameter values with n_bins controlling the granularity. Returns:
 
-    - table: a table of the kernel weights for impact parameters. Key with the impact parameter normalised by smoothing length (b/h).
+    - table: a table of the kernel weights for impact parameters. Key with the impact parameter
+    normalised by smoothing length (b/h).
     """
     bin_width = 1.0 / n_bins
     table = np.zeros(shape=(n_bins + 1), dtype=np.float64)
@@ -167,7 +171,8 @@ def interpolate_ssp(
     out_spectrum: np.ndarray,
 ) -> float:
     """
-    Interpolates the log(age) and log(Z) values for a star into the SSP table to recover the spectra and remaining mass. Returns:
+    Interpolates the log(age) and log(Z) values for a star into the SSP table to
+    recover the spectra and remaining mass. Returns:
 
     - mass_remaining: the fraction of original mass the star has now
     - (overwrites out_spectrum in place)

@@ -12,18 +12,18 @@ The most important place to begin is the [`internals.yaml`](octavius/internals.y
 
 There are four data structures most fundamental to the analysis, which exist in [`data_structures.py`](octavius/data_management/data_structures.py):
 
-- SnapshotReader, which interfaces between Octavius and a raw, external snapshot. 
-- HaloSource, which maps particles to their haloes.
-- ParticleStore, a container of particles of the same particle type resembling a dictionary.
-- GroupStore, a container similar to the ParticleStore, but containing groups of the same type (galaxies, haloes).
+- `SnapshotReader`, which interfaces between Octavius and a raw, external snapshot. 
+- `HaloSource`, which maps particles to their haloes.
+- `ParticleStore`, a container of particles of the same particle type resembling a dictionary.
+- `GroupStore`, a container similar to the ParticleStore, but containing groups of the same type (galaxies, haloes).
 
-Octavius operates on four particle types (known throughout the codebase as ptypes): star, gas, bh (black hole), and dm (dark matter).
+Octavius operates on four particle types (known throughout the codebase as `ptypes`): `star`, `gas`, `bh` (black hole), and `dm` (dark matter).
 
 ## The Stores
 
-How do we map from a ParticleStore to a GroupStore? 
+How do we map from a `ParticleStore` to a `GroupStore`? 
 
-The ParticleStore contains ndarrays of data for its particles. These include HaloID, SubhaloID, and GalID: GroupStores are constructed from the IDs in the ParticleStores. It is important to understand how the mapping works because all the analysis is parallelised and computed at group-level. 
+The `ParticleStore` contains ndarrays of data for its particles. These include `HaloID`, `SubhaloID`, and `GalID`, which are group ID mappings used to construct a `GroupStore` for a certain group type. It is important to understand how the mapping works because all the analysis is parallelised and computed at group-level. 
 
 The codebase-wide membership representation convention is compressed sparse-row (CSR) format. In this representation there is a flat array of indices (henceforth sorted_idx), where keying sorted_idx by p will produce the index into the ParticleStore for particle p, and a flat array of offsets, which dictates the offset from the start of sorted_idx where the particles of each group start. So, if we want to access the star particles in galaxies, we would call get_csr_membership(ptype="star") on the galaxy GroupStore, and then to iterate over a quantity of particles in galaxy g, we would do:
 
@@ -33,11 +33,11 @@ The codebase-wide membership representation convention is compressed sparse-row 
         value = quantity_array[particle]
 ```
 
-Or when doing fancy indexing, simply do [offsets[g]:offsets[g+1]]. This comes with a (sometimes useful) property that np.diff(offsets) will give you the number of particles in each group.
+Or when doing fancy indexing, simply do `[offsets[g]:offsets[g+1]]`. This comes with a (sometimes useful) property that `np.diff(offsets)` will give you the number of particles in each group.
 
 It is important to remember Octavius supports one-to-many group mapping to compute inclusive properties in the case of particles belonging to multiple haloes; so you should always iterate over groups and index their particles as opposed to trying go the other way. 
 
-The ParticleStores and GroupStores are themselves packaged into dictionaries respectively named particles and groups, which are in turn stored in the SimulationData dataclass which is mutable and contains all data for the pipeline. 
+Every `ParticleStore` & `GroupStore` is packaged into respective dictionaries named `particles` and `groups`, which are in turn stored in the `SimulationData` dataclass which is mutable and contains all data for the pipeline. 
 
 ## Numba
 
@@ -146,7 +146,7 @@ Then, we can trace it into [`properties_core.py`](octavius/aggregate_properties/
     results["inertia_tensor"] = inertia_tensor  # results will be absorbed into GroupStore later in the code
 ```
 
-The standard method of getting data into a GroupStore is to use the .write_batch() method with a dictionary; alternatively, the column can be written directly by keying the GroupStore like a dictionary. It is recommended to store result arrays for quantities in a results dictionary and then use .write_batch() so the GroupStore can verify the shape of the data matches, so in this case we write the inertia tensor to the existing results dictionary which is later absorbed.
+The standard method of getting data into a `GroupStore` is to use the `write_batch()` method with a dictionary; alternatively, the column can be written directly by keying the `GroupStore` like a dictionary. It is recommended to store result arrays for quantities in a results dictionary and then use .write_batch() so the `GroupStore` can verify the shape of the data matches, so in this case we write the inertia tensor to the existing results dictionary which is later absorbed.
 
 Then, where combined kinematic quantities are being computed, we can simply add the combined quantity to the loop:
 
@@ -159,4 +159,4 @@ Then, where combined kinematic quantities are being computed, we can simply add 
 
 The inertia tensor will now appear in the output catalogue.
 
-New stages should follow the existing templates in internals.yaml. Each stage should have an associated run_stage_name function which takes SimulationData and the OctaviusConfig as its only arguments, which can be called from the pipeline: then, define what the stage needs and outputs in internals.yaml; the data will automatically be loaded and released for the stage when slotted into the pipeline. 
+New stages should follow the existing templates in `internals.yaml`. Each stage should have an associated `run_stage_name` function which takes `SimulationData` and the `OctaviusConfig` as its only arguments, which can be called from the pipeline: then, define what the stage needs and outputs in `internals.yaml`; the data will automatically be loaded and released for the stage when slotted into the pipeline. 

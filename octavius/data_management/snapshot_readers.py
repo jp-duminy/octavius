@@ -9,6 +9,7 @@ snapshot-specific terminology into an agnostic interface for the data structures
 
 This relies on the abstract base class SnapshotReader. In practice, the format-specific differences require some
 bespoke treatments here and there with overrides and such.
+
 """
 
 # type checking

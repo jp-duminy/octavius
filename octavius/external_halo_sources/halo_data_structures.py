@@ -29,12 +29,13 @@ logger = get_logger()
 @dataclass(slots=True, frozen=True)
 class HaloAssignments:
     """
-    Dictionaries of per-ptype HaloID/SubhaloID assignments aligned with the original snapshot. These use the internal -1 sentinel. Contains:
+    Dictionaries of per-ptype HaloID/SubhaloID assignments aligned with the original snapshot.
+    These use the internal -1 sentinel. Contains:
 
-    - halo_ids: field halo IDs
-    - n_total_haloes: the total number of haloes (and subhaloes) present
-    - subhalo_ids: subhalo IDs
-    - original_hids: original field halo IDs (from external finder)
+    - field_ids: field halo IDs
+    - n_field_haloes: the total number of haloes (and subhaloes) present
+    - sub_ids: subhalo IDs
+    - original_field_ids: original field halo IDs (from external finder)
     """
 
     field_ids: dict[str, np.ndarray]
@@ -48,11 +49,11 @@ class SubhaloInformation:
     """
     Basic subhalo information.
 
-    - host_halo_ids: top-level HaloID
+    - host_field_ids: top-level HaloID
     - parent_index: immediate parent subhalo index
     - depth: the level of nesting, always >=1
     - n_bound: the number of bound particles (inclusive)
-    - original_subhids: the original finder IDs
+    - original_sub_ids: the original finder IDs
     """
 
     host_field_ids: np.ndarray  # top-level HaloID

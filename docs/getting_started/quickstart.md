@@ -1,6 +1,6 @@
 # Quickstart
 
-Once installed, the only prerequisite to analysing a snapshot is a configuration .yaml file, which contains all of the parameters and settings necessary to run the pipeline. A configuration file can be automatically generated in your current working directory from the terminal:
+Once installed, the only prerequisite to analysing a snapshot is a configuration YAML file, which contains all of the parameters and settings necessary to run the pipeline. A configuration file can be automatically generated in your current working directory from the terminal:
 
 ```bash
 octavius init
@@ -35,7 +35,11 @@ from pathlib import Path
 from octavius import analyse_snapshot, OctaviusConfig
 
 config_filepath = Path("/path/to/config.yaml")
-config = OctaviusConfig.from_yaml(config_filepath)
+config = OctaviusConfig.from_yaml(config_filepath)  # can optionally add overrides
+
+# you can also type the parameters manually
+config = OctaviusConfig(...)
+
 catalogue_path = analyse_snapshot(config)
 ```
 

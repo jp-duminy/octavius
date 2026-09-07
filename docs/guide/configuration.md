@@ -107,8 +107,6 @@ Please note disabling a particle entirely may have unintended consequences: for 
 
 `virial_factors`: a list of the overdensity threshold(s) for which halo virial quantities are computed (default: `[200, 500, 2500]`).
 
-`density_radii`: a list of the radii, in kiloparsecs, at which local environment properties are computed. (default: `[300, 1000, 3000]`).
-
 (photometry-parameters)=
 ## Photometry Parameters
 

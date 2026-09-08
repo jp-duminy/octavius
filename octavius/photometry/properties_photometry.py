@@ -105,15 +105,11 @@ def run_photometry(simulation_data: SimulationData, config: OctaviusConfig) -> N
     # galaxy data
     galaxies = simulation_data.groups["galaxies"]
     gal_com_pos = galaxies["com_pos_baryon"]
-    field_halo_idx = galaxies["field_halo_index"]
     gal_ssfr, gal_Z = _prepare_galaxy_quantities(
         galaxies=galaxies, Z_sun=constants.Z_SUN_ASPLUND
     )  # REVIEW: asplund metallicity is inherited convention
     star_offsets, star_idx = galaxies.get_particle_csr(ptype="star")
-
-    # halo data
-    haloes = simulation_data.groups["haloes"]
-    gas_offsets, gas_idx = haloes.get_particle_csr(ptype="gas")
+    gas_offsets, gas_idx = galaxies.get_particle_csr(ptype="gas")
 
     # filter data transmission coefficients [0, 1] + normalisations for the apparent and absolute magnitude integrands
     transmission_weighted_abs, transmission_norm_abs, transmission_weighted_app, transmission_norm_app = (
@@ -225,7 +221,6 @@ def run_photometry(simulation_data: SimulationData, config: OctaviusConfig) -> N
         filter_data=filter_data,
         dust_data=dust_data,
         phot_constants=phot_constants,
-        field_halo_idx=field_halo_idx,
         gal_com_pos=gal_com_pos,
         n_galaxies=galaxies.n_groups,
         delta_nu=delta_nu,

@@ -29,8 +29,6 @@ def compute_photometric_properties(
     filter_data: FilterData,
     dust_data: DustData,
     phot_constants: PhotometryConstants,
-    # galaxy-halo mapping (use field halo)
-    field_halo_idx: np.ndarray,
     gal_com_pos: np.ndarray,
     n_galaxies: int,
     # uv slope/fir luminosity quantities
@@ -100,9 +98,8 @@ def compute_photometric_properties(
         )
 
         # index mapping
-        halo_idx = field_halo_idx[gal_idx]
-        gas_start = gas_data.offsets[halo_idx]  # halo gas attenuates stars
-        gas_end = gas_data.offsets[halo_idx + 1]
+        gas_start = gas_data.offsets[gal_idx]
+        gas_end = gas_data.offsets[gal_idx + 1]
         gas_slice = gas_data.idx_sorted[gas_start:gas_end]
 
         star_start = star_data.offsets[gal_idx]
@@ -123,18 +120,22 @@ def compute_photometric_properties(
             gas_pos = gas_data.pos[gas_slice]
 
         # compute metal column density
-        Z_col = compute_metal_column_densities(
-            star_pos=star_pos,
-            gas_pos=gas_pos,
-            gas_mass=gas_data.dust_mass[gas_slice],
-            gas_metallicity=gas_data.metallicity[gas_slice],
-            smoothing_lengths=gas_data.smoothing_lengths[gas_slice],
-            gal_centre=com_pos,
-            neighbour_offsets=neighbour_offsets,
-            kernel_table=kernel_table,
-            los_axis=phot_constants.los_axis,
-            boxsize=phot_constants.boxsize,
-        )
+
+        if gas_start == gas_end:
+            Z_col = np.zeros(len(star_slice), dtype=np.float64)
+        else:
+            Z_col = compute_metal_column_densities(
+                star_pos=star_pos,
+                gas_pos=gas_pos,
+                gas_mass=gas_data.dust_mass[gas_slice],
+                gas_metallicity=gas_data.metallicity[gas_slice],
+                smoothing_lengths=gas_data.smoothing_lengths[gas_slice],
+                gal_centre=com_pos,
+                neighbour_offsets=neighbour_offsets,
+                kernel_table=kernel_table,
+                los_axis=phot_constants.los_axis,
+                boxsize=phot_constants.boxsize,
+            )
 
         # convert metal column density -> A_v
         star_A_v = np.empty(shape=len(Z_col), dtype=np.float64)

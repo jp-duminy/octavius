@@ -216,21 +216,10 @@ class OctaviusAnalyser:
 
         # get columns needed by photometry
         ptype_columns = self._resolve_stage_columns(stage=photometry, group_type=group_type)
-        gal_reqs = {"star": ptype_columns["star"]}
-        halo_reqs = {"gas": ptype_columns["gas"]}
-
-        halo_idx, gal_halo_map = _resolve_linked_groups(
-            collection=self._collections["galaxies"], group_idx=group_indices, linking_column="field_halo_index"
-        )
+        gal_reqs = {"star": ptype_columns["star"], "gas": ptype_columns["gas"]}
         gal_data = self._extract_groups(group_type=group_type, group_indices=group_indices, ptype_columns=gal_reqs)
-        halo_data = self._extract_groups(group_type="haloes", group_indices=halo_idx, ptype_columns=halo_reqs)
 
-        subset_data = gal_data | halo_data  # this works because one provides gas and the other star
-        particles = _build_particle_stores(subset_data=subset_data, internals=self._internals)
-
-        haloes = _build_group_store(
-            group_type="haloes", group_indices=halo_idx, subset_data=halo_data, internals=self._internals
-        )
+        particles = _build_particle_stores(subset_data=gal_data, internals=self._internals)
         galaxies = _build_group_store(
             group_type="galaxies", group_indices=group_indices, subset_data=gal_data, internals=self._internals
         )
@@ -243,12 +232,8 @@ class OctaviusAnalyser:
             stage=photometry,
             internals=self._internals,
         )
-        galaxies["field_halo_index"] = gal_halo_map
 
-        groups = {
-            "galaxies": galaxies,
-            "haloes": haloes,
-        }
+        groups = {"galaxies": galaxies}
 
         if orientation is not None:
             align_orientations(galaxies=galaxies, orientation=orientation)  # modifies in place

@@ -123,6 +123,7 @@ def construct_sparse_cell_linked_list(
     """
     n_particles = len(pos)
     pos_min, pos_max = _find_min_max(array=pos)
+    inv_linking_length = 1.0 / linking_length  # optimisation: multiplication by inv faster than division
 
     grid_origin = pos_min - linking_length
     grid_extent = (
@@ -131,15 +132,19 @@ def construct_sparse_cell_linked_list(
     grid_dims = np.zeros(3, dtype=np.int64)
 
     for d in range(3):  # NOTE: profiling says np.floor is unideal, so loop over axes
-        grid_dims[d] = np.int64(grid_extent[d] / linking_length) + 1  # +1 so if extent is 0, grid_dims is still 1
+        grid_dims[d] = np.int64(grid_extent[d] * inv_linking_length) + 1  # +1 so if extent is 0, grid_dims is still 1
 
-    flat_cell_idx = np.full(shape=n_particles, fill_value=-1, dtype=np.int64)
+    flat_cell_idx = np.empty(shape=n_particles, dtype=np.int64)
+
+    # allocate these here so we don't do lookups in the loop
+    origin_x, origin_y, origin_z = grid_origin[0], grid_origin[1], grid_origin[2]
+    max_x, max_y, max_z = grid_dims[0] - 1, grid_dims[1] - 1, grid_dims[2] - 1
 
     for i in range(n_particles):
         # this follows numpy/C convention, see https://numpy.org/devdocs/dev/internals.html "Multidimensional array indexing order issues"
-        cell_x = max(0, min(int((pos[i, 0] - grid_origin[0]) / linking_length), grid_dims[0] - 1))  # clips to grid dims
-        cell_y = max(0, min(int((pos[i, 1] - grid_origin[1]) / linking_length), grid_dims[1] - 1))
-        cell_z = max(0, min(int((pos[i, 2] - grid_origin[2]) / linking_length), grid_dims[2] - 1))
+        cell_x = max(0, min(int((pos[i, 0] - origin_x) * inv_linking_length), max_x))  # clips to grid dims
+        cell_y = max(0, min(int((pos[i, 1] - origin_y) * inv_linking_length), max_y))
+        cell_z = max(0, min(int((pos[i, 2] - origin_z) * inv_linking_length), max_z))
 
         flat_cell_idx[i] = _get_cell_index(cx=cell_x, cy=cell_y, cz=cell_z, grid_dims=grid_dims)
 
@@ -180,6 +185,8 @@ def link_particles(
     parents = np.arange(n_particles, dtype=np.int32)
     rank = np.zeros(n_particles, dtype=np.int32)
 
+    scaled_sigmas_sq = (sigmas * velocity_factor) ** 2  # optimisation: precompute these then index
+
     for i in range(n_particles):  # NOTE: see velocity dispersion function for more comments (duplicated logic)
         cell_id = cell_ids_sorted[i]
         cx = cell_id // (grid_dims[1] * grid_dims[2])  # inverse of the formula in the list construction function
@@ -195,13 +202,12 @@ def link_particles(
             _check_link(
                 positions=positions,
                 velocities=velocities,
-                sigmas=sigmas,
+                scaled_sigmas_sq=scaled_sigmas_sq,
                 parents=parents,
                 rank=rank,
                 i=i,
                 j=j,
                 linking_length_sq=linking_length_sq,
-                velocity_factor=velocity_factor,
             )
 
         for s in range(len(neighbour_offsets)):  # linking within neighbouring cells
@@ -222,13 +228,12 @@ def link_particles(
                     _check_link(
                         positions=positions,
                         velocities=velocities,
-                        sigmas=sigmas,
+                        scaled_sigmas_sq=scaled_sigmas_sq,
                         parents=parents,
                         rank=rank,
                         i=i,
                         j=j,
                         linking_length_sq=linking_length_sq,
-                        velocity_factor=velocity_factor,
                     )
 
     for i in range(n_particles):
@@ -241,13 +246,12 @@ def link_particles(
 def _check_link(
     positions: np.ndarray,
     velocities: np.ndarray,
-    sigmas: np.ndarray,
+    scaled_sigmas_sq: np.ndarray,
     parents: np.ndarray,
     rank: np.ndarray,
     i: int,
     j: int,
     linking_length_sq: float,
-    velocity_factor: float,
 ) -> None:
     """
     Performs the position and velocity-space checks; mutates parents/rank in place.
@@ -266,7 +270,7 @@ def _check_link(
         dv_sq = vel_dx**2 + vel_dy**2 + vel_dz**2
 
         # NOTE: max() treats the graph as undirected, whereas min() requires it be strongly-connected
-        if dv_sq <= (max(sigmas[i], sigmas[j]) * velocity_factor) ** 2:
+        if dv_sq <= max(scaled_sigmas_sq[i], scaled_sigmas_sq[j]):
             union(parent=parents, rank=rank, idx_i=i, idx_j=j)
 
 

@@ -65,6 +65,9 @@ def compute_photometric_properties(
     n_bands = len(filter_data.transmission_norm_abs)
     n_lambdas = len(wavelengths)
     log_wavelengths = np.log10(wavelengths)
+    log_ages = np.log10(np.maximum(star_data.age, 1e-9)) + 9  # log10(age [Gyr]), floor age of 1 yr
+    log_split_age = np.log10(phot_constants.split_age)  # config value is defined in Gyr
+    star_log_metallicities = np.log10(star_data.metallicity)
 
     # make allocations for outputs
     mag_abs = np.full(shape=(n_galaxies, n_bands), fill_value=np.nan)
@@ -167,20 +170,20 @@ def compute_photometric_properties(
         n_stars_gal = star_end - star_start
         n_age_grid = len(ssp_data.ages)
         ssp_keys = np.empty(n_stars_gal, dtype=np.int64)
-        local_ages = star_data.age[star_slice]
-        local_metallicities = star_data.metallicity[star_slice]
+        local_ages = log_ages[star_slice]
+        local_metallicities = star_log_metallicities[star_slice]
 
         for s in range(n_stars_gal):
-            age_idx, _ = get_interpolation_idx(grid=ssp_data.ages, value=np.log10(local_ages[s]) + 9.0)
-            Z_idx, _ = get_interpolation_idx(grid=ssp_data.metallicities, value=np.log10(local_metallicities[s]))
+            age_idx, _ = get_interpolation_idx(grid=ssp_data.ages, value=local_ages[s])
+            Z_idx, _ = get_interpolation_idx(grid=ssp_data.metallicities, value=local_metallicities[s])
             ssp_keys[s] = Z_idx * n_age_grid + age_idx  # row-major ordering
 
         ssp_order = np.argsort(ssp_keys)
 
         compute_spectrum(
             star_masses=star_data.mass[star_slice][ssp_order],
-            star_ages=star_data.age[star_slice][ssp_order],
-            star_metallicities=star_data.metallicity[star_slice][ssp_order],
+            log_star_ages=log_ages[star_slice][ssp_order],
+            log_star_metallicities=star_log_metallicities[star_slice][ssp_order],
             star_los_velocities=star_vel_los[ssp_order],
             star_A_v=star_A_v[ssp_order],
             attenuation_curve=extinction_curve,
@@ -190,7 +193,7 @@ def compute_photometric_properties(
             ssp_mass_remaining=ssp_data.mass_remaining,
             wavelengths=wavelengths,
             c_kms=phot_constants.c_kms,
-            split_age=phot_constants.split_age,
+            log_split_age=log_split_age,
             out_spectrum_dust=spectrum_dust,
             out_spectrum_nodust=spectrum_nodust,
         )
@@ -274,8 +277,8 @@ def compute_photometric_properties(
 @njit(cache=True)
 def compute_spectrum(
     star_masses: np.ndarray,
-    star_ages: np.ndarray,
-    star_metallicities: np.ndarray,
+    log_star_ages: np.ndarray,
+    log_star_metallicities: np.ndarray,
     star_los_velocities: np.ndarray,
     star_A_v: np.ndarray,
     attenuation_curve: np.ndarray,
@@ -285,7 +288,7 @@ def compute_spectrum(
     ssp_mass_remaining: np.ndarray,
     wavelengths: np.ndarray,
     c_kms: float,
-    split_age: float,
+    log_split_age: float,
     out_spectrum_dust: np.ndarray,
     out_spectrum_nodust: np.ndarray,
 ) -> None:
@@ -294,24 +297,27 @@ def compute_spectrum(
     """
     n_wave = len(wavelengths)
     n_stars = len(star_masses)
-    star_spectrum = np.empty(shape=n_wave, dtype=np.float64)
+    star_spectrum = np.empty(
+        shape=n_wave, dtype=np.float64
+    )  # this allocation is a bit expensive (every star in every galaxy x 5000)
     out_spectrum_dust[:] = 0.0  # we reuse the output arrays, so set them equal to zero at instantiation
     out_spectrum_nodust[:] = 0.0
 
+    # NOTE: work in logspace for the whole loop
     for i in range(n_stars):
-        star_age = star_ages[i]
+        log_star_age = log_star_ages[i]
         los_velocity = star_los_velocities[i]
         shift_factor = 1.0 + los_velocity / c_kms  # for doppler shift
-        log_Z = np.log10(star_metallicities[i])
+        log_Z = log_star_metallicities[i]
 
         # if stars are below split_age, we split its age into time bins
-        if star_age < split_age and star_age > 0.0:
-            n_bins = min(int(split_age / star_age), 10)  # upper limit of ten bins for stars > split_age
-            age_step = star_age / (n_bins + 1)
+        if log_star_age < log_split_age:
+            ratio = 10 ** (log_split_age - log_star_age)
+            n_bins = min(int(ratio), 10)  # upper limit of ten bins for stars > split_age
 
             # this is called just for mass_remaining
             mass_remaining = interpolate_ssp(
-                log_age=np.log10(star_age) + 9.0,  # convert to log10(yr)
+                log_age=log_star_age,  # convert to log10(yr)
                 log_Z=log_Z,
                 age_grid=ssp_ages,
                 Z_grid=ssp_metallicities,
@@ -323,8 +329,8 @@ def compute_spectrum(
             split_mass = formation_mass / (2 * n_bins + 1)
 
             for j in range(-n_bins, n_bins + 1):
-                sub_age = star_age + j * age_step
-                sub_age_log_yr = np.log10(sub_age) + 9
+                # factor out age, take log, then addition
+                sub_age_log_yr = log_star_age + np.log10(1.0 + j / (n_bins + 1))
 
                 interpolate_ssp(  # discard the mass_remaining from here
                     log_age=sub_age_log_yr,
@@ -348,12 +354,9 @@ def compute_spectrum(
                     out_spectrum_nodust=out_spectrum_nodust,
                 )
 
-        elif star_age <= 0.0:  # prevents log(age) going to -inf
-            continue
-
         else:  # otherwise don't bother
             mass_remaining = interpolate_ssp(
-                log_age=np.log10(star_age) + 9.0,  # convert to log10(yr)
+                log_age=log_star_age,
                 log_Z=log_Z,
                 age_grid=ssp_ages,
                 Z_grid=ssp_metallicities,
@@ -541,7 +544,8 @@ def compute_metal_column_densities(
     boxsize: float,
 ) -> np.ndarray:
     """
-    Computes the total metal column density from gas along the LOS for the stars in a galaxy along the LOS. star_pos should be the stars in the galaxy; gas quantities should be halo-level. Returns:
+    Computes the total metal column density from gas along the LOS for the stars in a galaxy along
+    the LOS. Returns:
 
     - Z_col: the total metal column density from gas along the LOS
     """
@@ -556,7 +560,7 @@ def compute_metal_column_densities(
     ax0 = (los_axis + 1) % 3
     ax1 = (los_axis + 2) % 3
 
-    sort_order, cell_offsets, n_cells_x, n_cells_y, origin_x, origin_y, cell_width = build_dust_cell_list(
+    sort_order, cell_offsets, n_cells_x, n_cells_y, origin_x, origin_y, inv_cell_width = build_dust_cell_list(
         gas_pos=gas_pos,
         smoothing_lengths=smoothing_lengths,
         ax0=ax0,
@@ -566,12 +570,16 @@ def compute_metal_column_densities(
     n_bins = len(kernel_table) - 1
     n_stars = len(star_pos)
     Z_col = np.zeros(shape=n_stars, dtype=np.float64)
-    dx = np.empty(3, dtype=np.float64)  # allocate this here and overwrite in the loop
+
+    # precomputed arrays + micro-optimisations for indexing in the nested loop
+    inv_h = 1.0 / smoothing_lengths  # likewise for smoothing lengths
+    h_sq = smoothing_lengths**2
+    gas_weights = (gas_mass * gas_metallicity) / h_sq
 
     for i in range(n_stars):  # outer loop over stars
         # the cell in which the star lives
-        cx = int((star_pos[i, ax0] - origin_x) / cell_width)
-        cy = int((star_pos[i, ax1] - origin_y) / cell_width)
+        cx = int((star_pos[i, ax0] - origin_x) * inv_cell_width)
+        cy = int((star_pos[i, ax1] - origin_y) * inv_cell_width)
         cx = min(
             max(cx, 0), (n_cells_x - 1)
         )  # clip because cells were built on gas so stars can be outside the covered region
@@ -589,33 +597,32 @@ def compute_metal_column_densities(
             end = cell_offsets[cell_id + 1]
 
             for idx in range(start, end):  # inner loop over gas in each cell
-                g = sort_order[idx]
+                g = sort_order[idx]  # gas index
 
-                for d in range(3):  # inherited convention: observer lives at -infinity
-                    dx[d] = gas_pos[g, d] - star_pos[i, d]
+                # observer lives at -infinity
+                dx_los = gas_pos[g, los_axis] - star_pos[i, los_axis]
+                if dx_los > 0:
+                    continue
 
-                if dx[los_axis] > 0:
-                    continue  # if gas is behind star it contributes 0 to attenuation
+                dx_ax0 = gas_pos[g, ax0] - star_pos[i, ax0]
+                dx_ax1 = gas_pos[g, ax1] - star_pos[i, ax1]
+                b_sq = dx_ax0**2 + dx_ax1**2
 
-                b_sq = dx[ax0] ** 2 + dx[ax1] ** 2
-                h = smoothing_lengths[g]
-                h_sq = h**2
-
-                if b_sq >= h_sq:
+                if b_sq >= h_sq[g]:
                     continue  # gas particles beyond 1 smoothing length away have 0 weight
 
-                b_over_h = np.sqrt(b_sq) / h  # kernel table is keyed by b/h
+                b_over_h = np.sqrt(b_sq) * inv_h[g]  # kernel table is keyed by b/h
                 table_idx = int(n_bins * b_over_h)
                 kernel_weight = kernel_table[table_idx]
 
                 # metal mass with kernel weight normalised to surface element
-                Z_col[i] += gas_mass[g] * gas_metallicity[g] * kernel_weight / h_sq
+                Z_col[i] += gas_weights[g] * kernel_weight
 
     return Z_col
 
 
 @njit(cache=True)
-def build_dust_cell_list(  # TODO: this per-halo structure is currently constructed for each galaxy, precompute and key by field_halo_idx
+def build_dust_cell_list(
     gas_pos: np.ndarray,
     smoothing_lengths: np.ndarray,
     ax0: int,
@@ -628,7 +635,7 @@ def build_dust_cell_list(  # TODO: this per-halo structure is currently construc
     - cell_offsets: where each cell begins in the flat sorted array (classic csr offset)
     - n_cells_{x/y}: the number of cells in the orthogonal directions
     - origin_{x/y}: the origin of the cell list in the orthogonal directions
-    - cell_width: the width of each cell (max smoothing length)
+    - inv_cell_width: inverse of the width of each cell (sized to max smoothing length)
     """
     if len(gas_pos) == 0:  # you can't hit this in principle, but I'm leaving it here in case the code changes in future
         empty = np.empty(0, dtype=np.int64)
@@ -636,15 +643,17 @@ def build_dust_cell_list(  # TODO: this per-halo structure is currently construc
         return empty, offsets, 0, 0, 0.0, 0.0, 0.0  # match type check
 
     # set the maximum cell width to h_max so a star will always access all gas which contributes to its attenutation
-    cell_width = np.max(smoothing_lengths)
+    inv_cell_width = 1 / np.max(
+        smoothing_lengths
+    )  # optimisation: compute inverse here then use faster multiplication instruction
 
     # np.min/max with axis arg is not supported in numba (yet)
     origin_x = np.min(gas_pos[:, ax0])
     origin_y = np.min(gas_pos[:, ax1])
     max_x = np.max(gas_pos[:, ax0])
     max_y = np.max(gas_pos[:, ax1])
-    n_cells_x = int((max_x - origin_x) / cell_width) + 1  # padding so particles at the edge are always included
-    n_cells_y = int((max_y - origin_y) / cell_width) + 1
+    n_cells_x = int((max_x - origin_x) * inv_cell_width) + 1  # padding so particles at the edge are always included
+    n_cells_y = int((max_y - origin_y) * inv_cell_width) + 1
 
     n_particles = len(gas_pos)
     cell_ids = np.empty(
@@ -652,8 +661,8 @@ def build_dust_cell_list(  # TODO: this per-halo structure is currently construc
     )  # NOTE: int32 should suffice here since this is performance-critical
 
     for i in range(n_particles):
-        ix = int((gas_pos[i, ax0] - origin_x) / cell_width)
-        iy = int((gas_pos[i, ax1] - origin_y) / cell_width)
+        ix = int((gas_pos[i, ax0] - origin_x) * inv_cell_width)
+        iy = int((gas_pos[i, ax1] - origin_y) * inv_cell_width)
         cell_idx = ix * n_cells_y + iy  # row-major ordering
         cell_ids[i] = cell_idx
 
@@ -669,4 +678,4 @@ def build_dust_cell_list(  # TODO: this per-halo structure is currently construc
     for i in range(n_total_cells):
         cell_offsets[i + 1] += cell_offsets[i]
 
-    return sort_order, cell_offsets, n_cells_x, n_cells_y, origin_x, origin_y, cell_width
+    return sort_order, cell_offsets, n_cells_x, n_cells_y, origin_x, origin_y, inv_cell_width

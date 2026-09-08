@@ -179,8 +179,8 @@ def interpolate_ssp(
     """
     # NOTE: this function is hefty and runs per-star, and therefore requires careful optimisation to avoid memory spikes; hence it overwrites out_spectrum in place and avoids materialising intermediates through fancy indexing
 
-    age_idx, age_frac = _get_interpolation_idx(grid=age_grid, value=log_age)
-    Z_idx, Z_frac = _get_interpolation_idx(grid=Z_grid, value=log_Z)
+    age_idx, age_frac = get_interpolation_idx(grid=age_grid, value=log_age)
+    Z_idx, Z_frac = get_interpolation_idx(grid=Z_grid, value=log_Z)
 
     # formula from wikipedia: bilinear interpolation, "on the unit square", where x is age and y is metallicity
     w11 = (1 - age_frac) * (1 - Z_frac)
@@ -207,7 +207,7 @@ def interpolate_ssp(
 
 
 @njit(cache=True)
-def _get_interpolation_idx(grid: np.ndarray, value: float) -> tuple[int, float]:
+def get_interpolation_idx(grid: np.ndarray, value: float) -> tuple[int, float]:
     """
     Finds the idx into 'grid' where 'value' can be interpolated from and the corresponding coefficient. Returns:
 

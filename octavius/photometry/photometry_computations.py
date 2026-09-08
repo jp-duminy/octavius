@@ -16,7 +16,16 @@ from numba import njit, prange
 import numpy as np
 
 # internal imports
-from .photometry_helpers import interpolate_ssp, StarData, GasData, SSPData, FilterData, DustData, PhotometryConstants
+from .photometry_helpers import (
+    interpolate_ssp,
+    get_interpolation_idx,
+    StarData,
+    GasData,
+    SSPData,
+    FilterData,
+    DustData,
+    PhotometryConstants,
+)
 from ..utils import unwrap_positions
 
 
@@ -152,12 +161,28 @@ def compute_photometric_properties(
                     if dtm < phot_constants.mw_dust_to_metal:
                         star_A_v[s] *= dtm / phot_constants.mw_dust_to_metal
 
+        # the SSP table is spread across ~5.5k wavelengths, but most stars are clustered in a few bins
+        # if you therefore sort the stars, you get a performance boost because the spectrum computations
+        # will hit the cached values in the bin rather than jumping about
+        n_stars_gal = star_end - star_start
+        n_age_grid = len(ssp_data.ages)
+        ssp_keys = np.empty(n_stars_gal, dtype=np.int64)
+        local_ages = star_data.age[star_slice]
+        local_metallicities = star_data.metallicity[star_slice]
+
+        for s in range(n_stars_gal):
+            age_idx, _ = get_interpolation_idx(grid=ssp_data.ages, value=np.log10(local_ages[s]) + 9.0)
+            Z_idx, _ = get_interpolation_idx(grid=ssp_data.metallicities, value=np.log10(local_metallicities[s]))
+            ssp_keys[s] = Z_idx * n_age_grid + age_idx  # row-major ordering
+
+        ssp_order = np.argsort(ssp_keys)
+
         compute_spectrum(
-            star_masses=star_data.mass[star_slice],
-            star_ages=star_data.age[star_slice],
-            star_metallicities=star_data.metallicity[star_slice],
-            star_los_velocities=star_vel_los,
-            star_A_v=star_A_v,
+            star_masses=star_data.mass[star_slice][ssp_order],
+            star_ages=star_data.age[star_slice][ssp_order],
+            star_metallicities=star_data.metallicity[star_slice][ssp_order],
+            star_los_velocities=star_vel_los[ssp_order],
+            star_A_v=star_A_v[ssp_order],
             attenuation_curve=extinction_curve,
             ssp_spectra=ssp_data.spectra,
             ssp_ages=ssp_data.ages,

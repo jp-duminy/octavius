@@ -99,8 +99,8 @@ def run_photometry(simulation_data: SimulationData, config: OctaviusConfig) -> N
         )  # apparent magnitude is computed by blueshifting band; correct for corresponding (1+z) flux reduction
 
     # UV bounds
-    uv_start_idx = int(np.searchsorted(wavelengths, 1500.0))
-    uv_end_idx = int(np.searchsorted(wavelengths, 3000.0))
+    uv_start_idx = np.searchsorted(wavelengths, 1500.0)
+    uv_end_idx = np.searchsorted(wavelengths, 3000.0)
 
     # galaxy data
     galaxies = simulation_data.groups["galaxies"]
@@ -203,7 +203,7 @@ def run_photometry(simulation_data: SimulationData, config: OctaviusConfig) -> N
         flux_factor_app=flux_factor_app,
     )
 
-    logger.info(f"Computing photometric properties for galaxies: {galaxies.n_groups} members")
+    logger.info(f"Computing photometric properties for galaxies: {galaxies.n_groups:,} members")
     (
         mag_abs,
         mag_abs_nodust,
@@ -249,7 +249,7 @@ def run_photometry(simulation_data: SimulationData, config: OctaviusConfig) -> N
 
     galaxies.write_batch(results=results)  # use write_batch for shape checking
 
-    logger.info(f"Successfully computed photometric properties for {galaxies.n_groups} galaxies.")
+    logger.info(f"Successfully computed photometric properties for {galaxies.n_groups:,} galaxies.")
 
 
 def _prepare_galaxy_quantities(galaxies: GroupStore, Z_sun: float) -> tuple[np.ndarray, np.ndarray]:

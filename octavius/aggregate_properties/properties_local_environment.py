@@ -34,7 +34,7 @@ def run_local_environment(simulation_data: SimulationData, config: OctaviusConfi
         return
 
     galaxies = simulation_data.groups["galaxies"]
-    logger.info(f"Running local environment properties: {galaxies.n_groups} members")
+    logger.info(f"Running local environment properties for galaxies: {galaxies.n_groups:,} members")
     sim = simulation_data.simulation
 
     for aperture in config.aperture_size:
@@ -48,7 +48,7 @@ def run_local_environment(simulation_data: SimulationData, config: OctaviusConfi
         )
         galaxies.write_batch(results=aperture_results)
 
-    logger.info("Local environment properties computed.")
+    logger.info("Local environment properties computed for galaxies.")
 
 
 def compute_galaxy_aperture_masses(  # FIXME: aperture masses of galaxies at edge of halo are less accurate as particles are split across ranks

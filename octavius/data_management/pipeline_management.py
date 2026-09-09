@@ -262,31 +262,32 @@ def validate_stage_requirements(
 
     # NOTE: by this point the stages are topologically sorted
     for stage in ordered_stages:
-
         # dependency check
-        missing_deps = stage.requires & dropped  # the sort means a requisite will be dropped before we arrive at its dependent
+        missing_deps = (
+            stage.requires & dropped
+        )  # the sort means a requisite will be dropped before we arrive at its dependent
         if missing_deps:
             logger.warning(
-                f"Skipping '{stage.name}': depends on dropped stages {", ".join(sorted(missing_deps))}."  # sort for identical log output between ranks
+                f"Skipping '{stage.name}': depends on dropped stages {', '.join(sorted(missing_deps))}."  # sort for identical log output between ranks
             )
             dropped.add(stage.name)
             continue
 
         # ptype check: this skips a stage if all are missing; stages should handle one missing internally
-        specific_ptypes = {
-            ptype for ptype in stage.needs_particle_columns if ptype != "all"
-        }
-        if specific_ptypes:  
+        specific_ptypes = {ptype for ptype in stage.needs_particle_columns if ptype != "all"}
+        if specific_ptypes:
             viable_ptypes = specific_ptypes & available_ptypes
             if not viable_ptypes:
                 logger.warning(
-                    f"Skipping '{stage.name}': requires ptypes {", ".join(sorted(specific_ptypes))}, "
+                    f"Skipping '{stage.name}': requires ptypes {', '.join(sorted(specific_ptypes))}, "
                     f"but none are available."
                 )
                 dropped.add(stage.name)
                 continue
 
         validated.append(stage)
+
+    logger.info(f"Pipeline: {len(validated)} / {len(ordered_stages)} stages validated.")
 
     return validated
 

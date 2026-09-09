@@ -160,8 +160,13 @@ def execute_pipeline(
     """
     Executes each toggled stage of the Octavius pipeline.
     """
+    if halo_assignments.n_field_haloes == 0:  # high-z snapshot early return
+        logger = get_logger()
+        logger.warning("No haloes exist: exiting pipeline.")
+        return RankPackedData.empty()
+    
     sim = reader.simulation_attributes
-    with timer("Load particles", timings=timings, memory=memory, comm=reader.comm):
+    with timer("Initialise particle data structures", timings=timings, memory=memory, comm=reader.comm):
         particles = build_particle_stores(
             reader=reader, internals=internals, halo_assignments=halo_assignments, process_ptypes=config.process_ptypes
         )
@@ -180,7 +185,7 @@ def execute_pipeline(
             particles[ptype]["GalID"] = np.full(particles[ptype].n_particles, -1, dtype=np.int64)
         fof6d_result = FOF6DResult.empty()
 
-    with timer("Build GroupStores", timings=timings, memory=memory, comm=reader.comm):
+    with timer("Initialise group data structures", timings=timings, memory=memory, comm=reader.comm):
         groups: dict[str, GroupStore] = {}
         groups["haloes"] = build_halo_store(  # must build halo store first
             particles=particles,
@@ -205,7 +210,7 @@ def execute_pipeline(
 
         requested = [name for name, enabled in config.stages.items() if enabled and name != "find_galaxies"]
         ordered_stages = resolve_dependencies(stages=internals.stages, requested=requested)
-        validate_stage_requirements(ordered_stages=ordered_stages, available_ptypes=set(particles.keys()))
+        ordered_stages = validate_stage_requirements(ordered_stages=ordered_stages, available_ptypes=set(particles.keys()))  # overwrite with stages which can actually run
 
     stage_dispatch = {
         "properties_core": run_core_properties,

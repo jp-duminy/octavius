@@ -179,7 +179,7 @@ def generate_rank_halo_assignments(
     all_valid_hids = np.flatnonzero(valid_halo_mask)
 
     if all_valid_hids.size == 0:  # guard against no-halo snapshots (high-z)
-        logger.warning("No valid HaloIDs!")
+        logger.warning("No valid halo IDs!")
         return (
             np.full(shape=halo_assignments.n_field_haloes, fill_value=-1, dtype=np.int64),
             np.empty(0, dtype=np.float64),

@@ -81,6 +81,13 @@ class RankPackedData:
 
     groups: dict[str, GroupPackedData]
 
+    @classmethod
+    def empty(cls) -> RankPackedData:
+        """
+        Returns an empty object for if no groups exist (high-z snapshots).
+        """
+        return cls(groups={})
+
     def without_indices(self) -> RankPackedData:
         """
         Deletes the particle lists (enormous) from the rankdata (useful for gather)

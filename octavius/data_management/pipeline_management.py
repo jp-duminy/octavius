@@ -250,18 +250,45 @@ def release_stage_columns(
 def validate_stage_requirements(
     ordered_stages: list[PipelineStage],
     available_ptypes: set[str],
-) -> None:
+) -> list[PipelineStage]:
     """
-    Validates the ptypes enabled in the config and the stages the user requested are self-consistent.
+    Validates the ptypes enabled in the config and the stages the user requested are self-consistent:
+    skips stages for which data does not exist. Returns:
+
+    - validated: a list of stages which can run in the pipeline given the available data
     """
+    dropped: set[str] = set()
+    validated: list[PipelineStage] = []
+
+    # NOTE: by this point the stages are topologically sorted
     for stage in ordered_stages:
-        for ptype, columns in stage.needs_particle_columns.items():
-            if ptype == "all":  # this is handled by the particles dict which depends on what exists already so skip
-                continue
-            if ptype not in available_ptypes:
-                raise ValueError(
-                    f"{stage.name} requires {columns} on {ptype} particles, but {ptype} is disabled in the config."
+
+        # dependency check
+        missing_deps = stage.requires & dropped  # the sort means a requisite will be dropped before we arrive at its dependent
+        if missing_deps:
+            logger.warning(
+                f"Skipping '{stage.name}': depends on dropped stages {", ".join(sorted(missing_deps))}."  # sort for identical log output between ranks
+            )
+            dropped.add(stage.name)
+            continue
+
+        # ptype check: this skips a stage if all are missing; stages should handle one missing internally
+        specific_ptypes = {
+            ptype for ptype in stage.needs_particle_columns if ptype != "all"
+        }
+        if specific_ptypes:  
+            viable_ptypes = specific_ptypes & available_ptypes
+            if not viable_ptypes:
+                logger.warning(
+                    f"Skipping '{stage.name}': requires ptypes {", ".join(sorted(specific_ptypes))}, "
+                    f"but none are available."
                 )
+                dropped.add(stage.name)
+                continue
+
+        validated.append(stage)
+
+    return validated
 
 
 def _load_columns(

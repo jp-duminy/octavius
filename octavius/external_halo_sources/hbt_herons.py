@@ -44,6 +44,9 @@ from .halo_data_structures import (
     distribute_ids,
     apply_lookup,
 )
+from ..log import get_logger
+
+logger = get_logger()
 
 
 class HeronsCatalogue(NamedTuple):
@@ -179,12 +182,19 @@ class HeronsHaloSource(HaloSource):
         original_field_ids = self._catalogue.host_halo_ids[self._lookups.field_mask]
         n_total_haloes = self._lookups.n_field
 
+        n_subhaloes = np.sum(self._catalogue.depth > 0)
+        logger.info(f"HBT-HERONS: {n_total_haloes} field haloes | {n_subhaloes} subhaloes.")
+
         halo_assignments = HaloAssignments(
             field_ids=field_ids,
             original_field_ids=original_field_ids,
             sub_ids=sub_ids,
             n_field_haloes=n_total_haloes,
         )
+
+        for ptype, ids in field_ids.items():
+            n_assigned = np.sum(ids != -1)
+            logger.info(f"  {ptype}: {n_assigned:,} / {len(ids):,} particles assigned to haloes.")
 
         return halo_assignments
 

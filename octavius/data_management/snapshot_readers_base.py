@@ -395,6 +395,9 @@ class SwiftReader(SnapshotReader):
             omega_matter = cosmo["Omega_m"].item()
             omega_lambda = cosmo["Omega_lambda"].item()
 
+        for ptype, count in self.particle_counts.items():
+            logger.info(f"  {ptype}: {count:,} particles")
+
         flat_w0wa_cdm = Flatw0waCDM(
             H0=100 * h, Om0=omega_matter, Tcmb0=T_cmb_0, w0=w_0, wa=w_a
         )  # reduces to lambdacdm if wa=0
@@ -527,6 +530,9 @@ class GadgetReader(SnapshotReader):
                 for hdf5_key, ptype_name in self.ptype_map.items()
                 if ptype_name in self.available_ptypes
             }
+
+        for ptype, count in self.particle_counts.items():
+            logger.info(f"  {ptype}: {count:,} particles")
 
         flat_lambda_cdm = FlatLambdaCDM(H0=100 * h, Om0=omega_matter)  # always flatlambdacdm for GADGET
 

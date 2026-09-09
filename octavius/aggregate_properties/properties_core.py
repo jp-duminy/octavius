@@ -64,7 +64,9 @@ def run_core_properties(simulation_data: SimulationData, config: OctaviusConfig)
     constants = simulation_data.constants
 
     for group_type in simulation_data.groups:  # haloes must run first (halo groupstore is built first)
-        logger.info(f"Running core properties for {group_type}: {simulation_data.groups[group_type].n_groups} members")
+        logger.info(
+            f"Running core properties for {group_type}: {simulation_data.groups[group_type].n_groups:,} members"
+        )
 
         group_store = simulation_data.groups[group_type]
         kind = group_store.kind

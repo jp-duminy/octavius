@@ -178,6 +178,10 @@ def generate_rank_halo_assignments(
     )  # masks min_dm_per_halo here
     all_valid_hids = np.flatnonzero(valid_halo_mask)
 
+    logger.info(
+        f"{len(all_valid_hids):,} / {halo_assignments.n_field_haloes:,} haloes above the min_dm_per_halo threshold ({config.min_dm_per_halo})."
+    )
+
     if all_valid_hids.size == 0:  # guard against no-halo snapshots (high-z)
         logger.warning("No valid HaloIDs!")
         return np.full(shape=halo_assignments.n_field_haloes, fill_value=-1, dtype=np.int64)  # match type check
@@ -198,9 +202,7 @@ def generate_rank_halo_assignments(
 
     # the actual binning algorithm, which is naturally sequential (not performance-heavy (yet))
     for idx in weight_order:
-        lightest = int(
-            np.argmin(rank_loads)  # rank with least computational weight currently
-        )
+        lightest = np.argmin(rank_loads)  # rank with least computational weight currently
         halo_to_rank[all_valid_hids[idx]] = lightest
         rank_loads[lightest] += halo_weights[idx]
 

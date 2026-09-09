@@ -73,14 +73,14 @@ def build_halo_source(config: OctaviusConfig, reader: SnapshotReader) -> HaloSou
     id_source = config.halo_id_source.upper()  # autocapitalise for user convenience
 
     if id_source == "SNAPSHOT":
-        logger.info("Using snapshot-assigned HaloIDs.")
+        logger.info("Using snapshot haloes.")
         return SnapshotHaloSource(reader=reader)
 
     elif id_source == "AHF":
         from .ahf import AHFHaloSource  # I had to stick this in here to avoid a circular import
 
         prefix = config.halo_catalogue_path  # renamed for explicitness
-        logger.info("Using AHF-assigned HaloIDs.")
+        logger.info("Using AHF haloes.")
         logger.info(f"Finding AHF catalogues at {prefix}")
         return AHFHaloSource(
             haloes_path=prefix.with_suffix(".AHF_halos"),
@@ -91,7 +91,7 @@ def build_halo_source(config: OctaviusConfig, reader: SnapshotReader) -> HaloSou
     elif id_source == "HBT-HERONS":
         from .hbt_herons import HeronsHaloSource
 
-        logger.info("Using HBT-HERONS halo IDs.")
+        logger.info("Using HBT-HERONS haloes.")
         logger.info(f"Finding HBT-HERONS catalogue at {config.halo_catalogue_path}")
 
         return HeronsHaloSource(catalogue_path=config.halo_catalogue_path, reader=reader)
@@ -101,7 +101,7 @@ def build_halo_source(config: OctaviusConfig, reader: SnapshotReader) -> HaloSou
 
         assert config.simulation_type == "TNG", f"{config.simulation_type} not supported with SUBFIND."
 
-        logger.info("Using SUBFIND halo assignments.")
+        logger.info("Using SUBFIND haloes.")
         logger.info(f"Finding SUBFIND catalogue at {config.halo_catalogue_path}")
 
         return SubfindHaloSource(catalogue_path=config.halo_catalogue_path, reader=reader)
@@ -187,8 +187,14 @@ class SnapshotHaloSource(HaloSource):
         for ptype in ptypes:
             halo_ids[ptype] = self.reader.read_halo_ids(ptype=ptype)  # these are already contiguous
 
-        max_id = max(int(ids.max()) for ids in halo_ids.values() if len(ids) > 0)
+        max_id = max((ids.max()) for ids in halo_ids.values() if len(ids) > 0)
         n_total_haloes = max_id + 1 if max_id >= 0 else 0  # derived, not read (could read from the actual field)
+
+        logger.info(f"Snapshot: {n_total_haloes} field haloes | no subhalo information")
+
+        for ptype, ids in halo_ids.items():
+            n_assigned = np.sum(ids != -1)
+            logger.info(f"  {ptype}: {n_assigned:,} / {len(ids):,} particles assigned to haloes.")
 
         return HaloAssignments(
             field_ids=halo_ids,

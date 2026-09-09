@@ -57,7 +57,8 @@ class FOF6DParameters:
 @dataclass(slots=True, frozen=True)
 class FOF6DResult:
     """
-    Assignments made by FOF6D for writing back into the ParticleStores; n_galaxies is used to flag whether galaxies were found, in which case the executor should build the GroupStore for galaxies.
+    Assignments made by FOF6D for writing back into the ParticleStores; n_galaxies is used to
+    flag whether galaxies were found, in which case the executor should build the GroupStore for galaxies.
     """
 
     write_keys: np.ndarray  # indexes back into the ParticleStores
@@ -82,9 +83,10 @@ def find_galaxies(
     constants: OctaviusConstants,
 ) -> FOF6DResult:
     """
-    Handles the end-to-end galaxy-finding with FOF6D pipeline; writes back to ParticleStore.
+    Handles the end-to-end galaxy-finding with FOF6D pipeline; writes back to the ParticleStores and returns
+    the FOF6DResult dataclass.
     """
-    logger.info("Locating galaxies with FOF6D algorithm.")
+    logger.info("Locating galaxies with the FOF6D algorithm.")
 
     # early return if there are no stars and therefore no galaxies
     if "star" not in particles or particles["star"].n_particles == 0:
@@ -111,7 +113,7 @@ def find_galaxies(
         logger.warning("No particles pass the FOF6D criteria; no galaxies found.")
         return empty_result
 
-    logger.debug(f"Linking length: {params.linking_length:.3f}")
+    logger.debug(f"Linking length: {params.linking_length:.3f} ckpc")
 
     parents = np.full(len(work_data.pos), -1, dtype=np.int32)
     dispatch_fof6d(
@@ -131,7 +133,7 @@ def find_galaxies(
 
     store_fof6d_results(particles=particles, result=result)
 
-    logger.info(f"Located {result.n_galaxies} galaxies.")
+    logger.info(f"Located {result.n_galaxies:,} galaxies.")
 
     return result
 
@@ -143,7 +145,8 @@ def prepare_fof6d_data(
     constants: OctaviusConstants,
 ) -> tuple[FOF6DData, FOF6DParameters]:
     """
-    Extracts relevant arrays from ParticleStores and FOF6D parameters from the SimulationAttributes & user config. Returns a tuple of:
+    Extracts relevant arrays from ParticleStores and FOF6D parameters from the
+    SimulationAttributes & user config. Returns a tuple of:
 
     - data: FOF6DData dataclass
     - params: FOF6DParameters dataclass
@@ -279,7 +282,9 @@ def apply_gas_mask(
     elif config.gas_criterion == "DENSE_ONLY":
         gas_mask = dense_mask
 
-    logger.debug(f"Galaxy gas criterion: {np.sum(gas_mask)}/{len(gas_mask)} particles passed ({config.gas_criterion})")
+    logger.debug(
+        f"Galaxy gas criterion: {np.sum(gas_mask):,} / {len(gas_mask):,} particles passed ({config.gas_criterion})"
+    )
 
     return gas_mask
 
@@ -338,7 +343,8 @@ def extract_galaxies_from_parents(
 
 def store_fof6d_results(particles: dict[str, ParticleStore], result: FOF6DResult) -> None:
     """
-    Appends the galaxy-finding results to ParticleStore (and is vectorised compared to the original).
+    Appends the galaxy-finding results to the ParticleStores by instantiating the
+    GalID column.
     """
     for ptype in particles:
         particles[ptype]["GalID"] = np.full(particles[ptype].n_particles, -1, dtype=np.int64)  # NOTE: sentinel value

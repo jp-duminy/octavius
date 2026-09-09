@@ -287,6 +287,8 @@ def validate_stage_requirements(
 
         validated.append(stage)
 
+    logger.info(f"Pipeline: {len(validated)} / {len(ordered_stages)} stages validated.")
+
     return validated
 
 

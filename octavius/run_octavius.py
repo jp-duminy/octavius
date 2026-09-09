@@ -158,6 +158,11 @@ def execute_pipeline(
     """
     Executes each toggled stage of the Octavius pipeline.
     """
+    if halo_assignments.n_field_haloes == 0:  # high-z snapshot early return
+        logger = get_logger()
+        logger.warning("No haloes exist: exiting pipeline.")
+        return RankPackedData.empty()
+
     sim = reader.simulation_attributes
     with timer("Load particles", timings=timings):
         particles = build_particle_stores(
@@ -203,7 +208,9 @@ def execute_pipeline(
 
         requested = [name for name, enabled in config.stages.items() if enabled and name != "find_galaxies"]
         ordered_stages = resolve_dependencies(stages=internals.stages, requested=requested)
-        validate_stage_requirements(ordered_stages=ordered_stages, available_ptypes=set(particles.keys()))
+        ordered_stages = validate_stage_requirements(
+            ordered_stages=ordered_stages, available_ptypes=set(particles.keys())
+        )  # overwrite with stages which can actually run
 
     stage_dispatch = {
         "properties_core": run_core_properties,

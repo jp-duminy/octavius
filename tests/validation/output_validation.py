@@ -112,7 +112,7 @@ def validate_halo_membership(f: h5py.File) -> None:
     # ensure there are no empty haloes
     particles_per_halo = np.sum([f["halo_data"][f"membership/{p}_lengths"][:] for p in PTYPES], axis=0)
     assert particles_per_halo[field_mask].min() > 0, "Empty field haloes detected."
-    n_empty_subhaloes = int((particles_per_halo[~field_mask] == 0).sum())
+    n_empty_subhaloes = np.sum(particles_per_halo[~field_mask] == 0)
     if n_empty_subhaloes > 0:
         logger.info(f"{n_empty_subhaloes} empty subhalo rows (permitted).")
 
@@ -137,7 +137,7 @@ def validate_halo_membership(f: h5py.File) -> None:
     non_field = depth > 0
     n_haloes = len(f["halo_data"]["HaloID"])
     walker = np.arange(n_haloes)
-    for _ in range(int(np.max(depth))):
+    for _ in range(np.max(depth)):
         not_root = depth[walker] > 0
         walker[not_root] = parent_halo_indices[walker[not_root]]
     assert np.array_equal(walker[non_field], field_halo_indices[non_field]), (
@@ -228,7 +228,7 @@ def validate_galaxy_mapping(f: h5py.File) -> None:
         depth = f["halo_data"]["membership/depth"][:]
         parent = f["halo_data"]["membership/parent_halo_index"][:]
         walker = parent_halo_indices.copy()
-        for _ in range(int(depth.max())):
+        for _ in range(np.max(depth)):
             at_field = depth[walker] == 0
             walker = np.where(at_field, walker, parent[walker])
         assert np.all(depth[walker] == 0), "The tree hierarchy (from membership arrays) does not lead to a field halo."

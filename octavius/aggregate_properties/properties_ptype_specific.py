@@ -40,7 +40,7 @@ def run_ptype_specific_properties(simulation_data: SimulationData, config: Octav
 
     for group_type in simulation_data.groups:
         logger.info(
-            f"Running ptype-specific properties for {group_type}: {simulation_data.groups[group_type].n_groups} members"
+            f"Running particle-specific properties for {group_type}: {simulation_data.groups[group_type].n_groups:,} members"
         )
 
         group_store = simulation_data.groups[group_type]
@@ -127,7 +127,7 @@ def run_ptype_specific_properties(simulation_data: SimulationData, config: Octav
             )
             group_store.write_batch(results=bh_results)
 
-        logger.info(f"Computed ptype-specific properties for {group_type}.")
+        logger.info(f"Particle-specific properties computed for {group_type}.")
 
 
 def compute_gas_properties(

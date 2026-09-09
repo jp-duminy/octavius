@@ -23,6 +23,9 @@ from numba import njit
 
 # internal imports
 from .halo_data_structures import HaloSource, HaloAssignments, SubhaloInformation, distribute_ids, compute_depths
+from ..log import get_logger
+
+logger = get_logger()
 
 
 class SubfindCatalogue(NamedTuple):
@@ -123,6 +126,13 @@ class SubfindHaloSource(HaloSource):
             field_ids[ptype] = ptype_field_ids
             sub_ids[ptype] = remapped_sub_ids
 
+        n_subhaloes = np.sum(depths >= 1)
+        logger.info(f"SUBFIND: {n_field_haloes} field haloes, {n_subhaloes} subhaloes.")
+
+        for ptype, ids in field_ids.items():
+            n_assigned = np.sum(ids != -1)
+            logger.info(f"  {ptype}: {n_assigned:,} / {len(ids):,} particles assigned to haloes.")
+
         assignments = HaloAssignments(
             field_ids=field_ids,
             sub_ids=sub_ids,
@@ -155,7 +165,7 @@ class SubfindHaloSource(HaloSource):
             sub_lookup[global_parents[sub_mask]],
         )
 
-        n_subhaloes = int(sub_mask.sum())
+        n_subhaloes = np.sum(sub_mask)
         original_sub_ids = np.arange(len(depths), dtype=np.int64)[sub_mask]
 
         subhalo_info = SubhaloInformation(

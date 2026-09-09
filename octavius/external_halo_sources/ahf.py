@@ -41,6 +41,9 @@ from .halo_data_structures import (
     compute_depths,
     apply_lookup,
 )
+from ..log import get_logger
+
+logger = get_logger()
 
 
 class AHFCatalogue(NamedTuple):  # for code readability
@@ -161,7 +164,7 @@ class AHFHaloSource(HaloSource):
             halo_assignments[ptype] = apply_lookup(ids=positional_hids, lookup=catalogue.field_lookup)
             subhalo_assignments[ptype] = apply_lookup(ids=positional_subhids, lookup=catalogue.sub_lookup)
 
-        n_total_haloes = int((catalogue.depths == 0).sum())
+        n_total_haloes = np.sum(catalogue.depths == 0)
 
         sub_info = self.read_subhalo_info()
         for ptype, sub_ids in subhalo_assignments.items():
@@ -169,6 +172,13 @@ class AHFHaloSource(HaloSource):
             assert np.array_equal(sub_info.host_field_ids[sub_ids[in_sub]], halo_assignments[ptype][in_sub]), (
                 f"{ptype}: particle HaloID disagrees with its subhalo's host tree."
             )
+
+        n_subhaloes = np.sum(catalogue.depths > 0)
+        logger.info(f"AHF: {n_total_haloes} field haloes | {n_subhaloes} subhaloes.")
+
+        for ptype, ids in halo_assignments.items():
+            n_assigned = np.sum(ids != -1)
+            logger.info(f"  {ptype}: {n_assigned:,} / {len(ids):,} particles assigned to haloes.")
 
         return HaloAssignments(
             field_ids=halo_assignments,

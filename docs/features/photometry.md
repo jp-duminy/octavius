@@ -2,7 +2,7 @@
 
 Octavius includes a full photometry pipeline which can compute absolute and apparent magnitudes in all [FSPS](https://python-fsps.readthedocs.io/en/latest/)-supported bands with dust extinction. The routine is as follows:
 
-- Partition the parent halo into cells sized by the maximum smoothing length
+- Partition the galaxy into cells sized by the maximum smoothing length
 - Compute the dust extinction to each star along the line of sight
 - Attenuate the spectra with the user-desired extinction law specified in the configuration file
 - Sum the spectra of the stars in each galaxy
@@ -40,14 +40,6 @@ Standalone photometry allows you to:
 - Return SEDs
 
 Please see the {ref}`configuration documentation <photometry-parameters>` for more information.
-
-## Note on Performance
-
-Photometry is the most computationally-expensive stage of the pipeline, taking longer than all other stages combined at scale. This time is dominated by the most massive galaxies: on large snapshots, single galaxies can take minutes by themselves. This is to be expected as the routine is inherently intricate. Optimisations such as partitioning the parent halo into cells for the LOS dust extinction have been implemented, but please allow more time for photometry than the rest of the pipeline. Future optimisation efforts will focus here. 
-
-:::{tip}
-The most demanding stage of the routine is computing the extinction for stars and their spectra, so it is recommended to liberally select bands in the configuration file. 
-:::
 
 ## Galaxy Outputs
 

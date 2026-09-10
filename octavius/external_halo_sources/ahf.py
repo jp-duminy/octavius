@@ -174,7 +174,7 @@ class AHFHaloSource(HaloSource):
             )
 
         n_subhaloes = np.sum(catalogue.depths > 0)
-        logger.info(f"AHF: {n_total_haloes} field haloes | {n_subhaloes} subhaloes.")
+        logger.info(f"AHF: {n_total_haloes:,} field haloes | {n_subhaloes:,} subhaloes.")
 
         for ptype, ids in halo_assignments.items():
             n_assigned = np.sum(ids != -1)

@@ -162,4 +162,4 @@ Contributions and bug reports are warmly encouraged. The package is currently pi
 - JP Duminy, University of Edinburgh
 - Jakub Szpila, Nicolaus Copernicus Astronomical Center
 
-<small>Last updated by JP Duminy, 05/09/2026.</small>
+<small>Last updated by JP Duminy, 10/09/2026.</small>

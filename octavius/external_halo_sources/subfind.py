@@ -127,7 +127,7 @@ class SubfindHaloSource(HaloSource):
             sub_ids[ptype] = remapped_sub_ids
 
         n_subhaloes = np.sum(depths >= 1)
-        logger.info(f"SUBFIND: {n_field_haloes} field haloes, {n_subhaloes} subhaloes.")
+        logger.info(f"SUBFIND: {n_field_haloes:,} field haloes, {n_subhaloes:,} subhaloes.")
 
         for ptype, ids in field_ids.items():
             n_assigned = np.sum(ids != -1)

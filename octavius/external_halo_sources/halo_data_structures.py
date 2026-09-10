@@ -190,7 +190,7 @@ class SnapshotHaloSource(HaloSource):
         max_id = max((ids.max()) for ids in halo_ids.values() if len(ids) > 0)
         n_total_haloes = max_id + 1 if max_id >= 0 else 0  # derived, not read (could read from the actual field)
 
-        logger.info(f"Snapshot: {n_total_haloes} field haloes | no subhalo information")
+        logger.info(f"Snapshot: {n_total_haloes:,} field haloes | no subhalo information")
 
         for ptype, ids in halo_ids.items():
             n_assigned = np.sum(ids != -1)

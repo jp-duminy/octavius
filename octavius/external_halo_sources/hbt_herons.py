@@ -183,7 +183,7 @@ class HeronsHaloSource(HaloSource):
         n_total_haloes = self._lookups.n_field
 
         n_subhaloes = np.sum(self._catalogue.depth > 0)
-        logger.info(f"HBT-HERONS: {n_total_haloes} field haloes | {n_subhaloes} subhaloes.")
+        logger.info(f"HBT-HERONS: {n_total_haloes:,} field haloes | {n_subhaloes:,} subhaloes.")
 
         halo_assignments = HaloAssignments(
             field_ids=field_ids,

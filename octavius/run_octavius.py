@@ -164,7 +164,7 @@ def execute_pipeline(
         return RankPackedData.empty()
 
     sim = reader.simulation_attributes
-    with timer("Load particles", timings=timings):
+    with timer("Initialise particle data structures", timings=timings):
         particles = build_particle_stores(
             reader=reader, internals=internals, halo_assignments=halo_assignments, process_ptypes=config.process_ptypes
         )
@@ -183,7 +183,7 @@ def execute_pipeline(
             particles[ptype]["GalID"] = np.full(particles[ptype].n_particles, -1, dtype=np.int64)
         fof6d_result = FOF6DResult.empty()
 
-    with timer("Build GroupStores", timings=timings):
+    with timer("Initialise group data structures", timings=timings):
         groups: dict[str, GroupStore] = {}
         groups["haloes"] = build_halo_store(  # must build halo store first
             particles=particles,

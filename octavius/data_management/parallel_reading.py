@@ -183,7 +183,7 @@ def generate_rank_halo_assignments(
     )
 
     if all_valid_hids.size == 0:  # guard against no-halo snapshots (high-z)
-        logger.warning("No valid HaloIDs!")
+        logger.warning("No valid halo IDs!")
         return np.full(shape=halo_assignments.n_field_haloes, fill_value=-1, dtype=np.int64)  # match type check
 
     n_valid_haloes = halo_assignments.n_field_haloes  # at this point the reader has remapped HaloIDs to 0-indexed

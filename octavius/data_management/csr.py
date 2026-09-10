@@ -10,9 +10,6 @@ you need to keep careful track of your indices.
 
 This file contains the utility functions for working with our membership format.
 
-# NOTE: assumes child groups appear after their parents, please ensure this is the case when adding
-new external halo finders.
-
 """
 
 # other packages
@@ -54,9 +51,18 @@ def propagate_membership_csr(
     inclusive_counts = np.empty(n_groups, dtype=np.int64)
     for g in range(n_groups):
         inclusive_counts[g] = offsets[g + 1] - offsets[g]
-    reverse_order = np.arange(n_groups)[
-        ::-1
-    ]  # deepest groups first so children propagate to their parents / TODO: descending=True in numpy 2.5
+
+    # the loops which follow assume parents appear before their children, so ensure this is the case
+    depth = np.zeros(n_groups, dtype=np.int64)
+    for g in range(n_groups):  # simple loop to recompute depth (easier than passing it)
+        current = g
+        d = 0
+        while parent_ids[current] >= 0:
+            current = parent_ids[current]
+            d += 1
+        depth[g] = d
+
+    reverse_order = np.argsort(depth)[::-1]  # TODO: descending=True in numpy 2.5.0
 
     for g in reverse_order:  # add child counts to parents
         if parent_ids[g] >= 0:

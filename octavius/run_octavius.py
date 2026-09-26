@@ -17,6 +17,7 @@ if TYPE_CHECKING:
 from pathlib import Path
 import argparse
 import shutil
+import resource
 from dataclasses import replace
 from contextlib import contextmanager
 from time import perf_counter
@@ -156,6 +157,7 @@ def execute_pipeline(
     global_subhalo_info: SubhaloInformation,
     timings: dict[str, float],
     memory: dict[str, int],
+    peak_memory: dict[str, int],
 ) -> RankPackedData:
     """
     Executes each toggled stage of the Octavius pipeline.
@@ -164,9 +166,11 @@ def execute_pipeline(
         logger = get_logger()
         logger.warning("No haloes exist: exiting pipeline.")
         return RankPackedData.empty()
-    
+
     sim = reader.simulation_attributes
-    with timer("Initialise particle data structures", timings=timings, memory=memory, comm=reader.comm):
+    with timer(
+        "Initialise particle data structures", timings=timings, memory=memory, peak_memory=peak_memory, comm=reader.comm
+    ):
         particles = build_particle_stores(
             reader=reader, internals=internals, halo_assignments=halo_assignments, process_ptypes=config.process_ptypes
         )
@@ -175,9 +179,9 @@ def execute_pipeline(
     )  # this is done locally and is safe, not worth optimising (though an elegant solution is always welcome)
 
     if config.stages.get("find_galaxies", True):
-        with timer("Load FOF6D columns", timings=timings, memory=memory, comm=reader.comm):
+        with timer("Load FOF6D columns", timings=timings, memory=memory, peak_memory=peak_memory, comm=reader.comm):
             load_stage_columns(particles=particles, reader=reader, stage=internals.stages["find_galaxies"])
-        with timer("Find Galaxies", timings=timings, memory=memory, comm=reader.comm):
+        with timer("Find Galaxies", timings=timings, memory=memory, peak_memory=peak_memory, comm=reader.comm):
             fof6d_result = find_galaxies(particles=particles, simulation=sim, config=config, constants=constants)
 
     else:  # other functions have guards built for no galaxies so we set IDs equal to the sentinel value
@@ -185,7 +189,9 @@ def execute_pipeline(
             particles[ptype]["GalID"] = np.full(particles[ptype].n_particles, -1, dtype=np.int64)
         fof6d_result = FOF6DResult.empty()
 
-    with timer("Initialise group data structures", timings=timings, memory=memory, comm=reader.comm):
+    with timer(
+        "Initialise group data structures", timings=timings, memory=memory, peak_memory=peak_memory, comm=reader.comm
+    ):
         groups: dict[str, GroupStore] = {}
         groups["haloes"] = build_halo_store(  # must build halo store first
             particles=particles,
@@ -204,13 +210,15 @@ def execute_pipeline(
                 group_kind=internals.group_types["galaxies"]["kind"],
             )
 
-    with timer("Prepare pipeline", timings=timings, memory=memory, comm=reader.comm):
+    with timer("Prepare pipeline", timings=timings, memory=memory, peak_memory=peak_memory, comm=reader.comm):
         simulation_data = SimulationData(simulation=sim, constants=constants, particles=particles, groups=groups)
         assign_membership(simulation_data=simulation_data, subhalo_info=subhalo_info, config=config)
 
         requested = [name for name, enabled in config.stages.items() if enabled and name != "find_galaxies"]
         ordered_stages = resolve_dependencies(stages=internals.stages, requested=requested)
-        ordered_stages = validate_stage_requirements(ordered_stages=ordered_stages, available_ptypes=set(particles.keys()))  # overwrite with stages which can actually run
+        ordered_stages = validate_stage_requirements(
+            ordered_stages=ordered_stages, available_ptypes=set(particles.keys())
+        )  # overwrite with stages which can actually run
 
     stage_dispatch = {
         "properties_core": run_core_properties,
@@ -220,9 +228,11 @@ def execute_pipeline(
     }
 
     for stage_idx, stage in enumerate(ordered_stages):
-        with timer(f"Load {stage.name} data", timings=timings, memory=memory, comm=reader.comm):
+        with timer(
+            f"Load {stage.name} data", timings=timings, memory=memory, peak_memory=peak_memory, comm=reader.comm
+        ):
             load_stage_columns(particles=particles, reader=reader, stage=stage)
-        with timer(f"Run {stage.name}", timings=timings, memory=memory, comm=reader.comm):
+        with timer(f"Run {stage.name}", timings=timings, memory=memory, peak_memory=peak_memory, comm=reader.comm):
             stage_dispatch[stage.name](simulation_data=simulation_data, config=config)
         release_stage_columns(particles=particles, current_idx=stage_idx, ordered_stages=ordered_stages)
 
@@ -231,7 +241,7 @@ def execute_pipeline(
     else:
         particle_indices = {ptype: np.arange(len(particles[ptype]), dtype=np.int64) for ptype in particles}
 
-    with timer("Save data", timings=timings, memory=memory, comm=reader.comm):
+    with timer("Save data", timings=timings, memory=memory, peak_memory=peak_memory, comm=reader.comm):
         membership_arrays = construct_membership_arrays(
             data=simulation_data, internals=internals, indices=particle_indices
         )
@@ -272,6 +282,10 @@ def analyse_snapshot(
     size = comm.Get_size() if comm else 1
     numba.set_num_threads(n=config.cores_per_rank)  # intra-rank parallelism
 
+    timings: dict[str, float] = {}
+    memory: dict[str, int] = {}
+    peak_memory: dict[str, int] = {}
+
     if rank == 0 and not config.quiet:
         print(BANNER, flush=True)
 
@@ -303,88 +317,88 @@ def analyse_snapshot(
     reader = build_reader(snapshot_path=config.snapshot_path, constants=oc, config=config)
     halo_source = build_halo_source(config=config, reader=reader)
 
-    # parallelism: rank 0 determines which haloes need to go to which rank
-    if rank == 0:  # no need for comm.Barrier() here as scatter does it inherently
-        all_halo_assignments = halo_source.read_halo_ids(ptypes=reader.available_ptypes)
-        subhalo_info = halo_source.read_subhalo_info()
-        halo_to_rank, halo_weights, total_counts, rank_loads = generate_rank_halo_assignments(
-            halo_assignments=all_halo_assignments, config=config, n_ranks=size
+    with timer("Load and assign haloes", timings=timings, memory=memory, peak_memory=peak_memory, comm=comm):
+        # parallelism: rank 0 determines which haloes need to go to which rank
+        if rank == 0:  # no need for comm.Barrier() here as scatter does it inherently
+            all_halo_assignments = halo_source.read_halo_ids(ptypes=reader.available_ptypes)
+            subhalo_info = halo_source.read_subhalo_info()
+            halo_to_rank, halo_weights, total_counts, rank_loads = generate_rank_halo_assignments(
+                halo_assignments=all_halo_assignments, config=config, n_ranks=size
+            )
+            original_halo_ids = all_halo_assignments.original_field_ids
+            halo_to_rank_length = len(halo_to_rank)
+            assert halo_to_rank.dtype == np.int64, (
+                "Bcast is receiving wrong dtype (bit corruption)."
+            )  # broadcasting is done on assumption it deals with 64-bit data
+
+        else:  # avoid MPI syntax error
+            halo_to_rank = None
+            halo_weights = None
+            total_counts = None
+            rank_loads = None
+            subhalo_info = None
+            original_halo_ids = None
+            halo_to_rank_length = 0
+
+    with timer("Distribute haloes", timings=timings, memory=memory, peak_memory=peak_memory, comm=comm):
+        if comm is not None:
+            halo_to_rank_length = comm.bcast(halo_to_rank_length, root=0)  # this is just an int so bcast
+            logger.info("Rank halo allocations broadcast successfully.")
+
+            if rank != 0:
+                halo_to_rank = np.empty(halo_to_rank_length, dtype=np.int64)  # malloc
+
+            comm.Bcast(halo_to_rank, root=0)  # capital B broadcast for halo_to_rank
+            subhalo_info = (
+                comm.bcast(subhalo_info, root=0) if comm else subhalo_info
+            )  # lowercase b broadcast for the subhalo dataclass (subset of haloes so smaller)
+            original_halo_ids = comm.bcast(original_halo_ids, root=0) if comm else original_halo_ids
+
+            # ranks determine which slab of each dataset they will read
+            slabs = generate_slabs(rank=rank, n_ranks=size, particle_counts=reader.particle_counts)
+
+            # rank 0 tells other ranks what the (Sub)HaloIDs of the particles on their slabs are
+            field_ids = halo_source.distribute_field_ids(
+                slabs=slabs, comm=comm, global_ids=all_halo_assignments.field_ids if rank == 0 else None
+            )
+            sub_ids = halo_source.distribute_sub_ids(
+                slabs=slabs, comm=comm, global_subhalo_ids=all_halo_assignments.sub_ids if rank == 0 else None
+            )
+
+        else:
+            slabs = generate_slabs(rank=0, n_ranks=1, particle_counts=reader.particle_counts)
+            field_ids = halo_source.distribute_field_ids(slabs=slabs)
+            sub_ids = halo_source.distribute_sub_ids(slabs=slabs)
+
+        # ranks determine the mapping from their slab to other ranks, and the mask for their own allocation of their slab
+        masks: dict[str, np.ndarray] = {}
+        maps: dict[str, RedistributionMap] = {}
+        local_halo_ids: dict[str, np.ndarray] = {}
+        local_subhalo_ids: dict[str, np.ndarray] | None = {} if sub_ids is not None else None
+
+        for ptype in sorted(field_ids):  # ranks must iterate in same order
+            maps[ptype], masks[ptype] = build_redistribution_map(halo_to_rank, field_ids[ptype], comm)
+            local_halo_ids[ptype] = redistribute_data(field_ids[ptype][masks[ptype]], maps[ptype], comm)
+            if sub_ids is not None:
+                local_subhalo_ids[ptype] = redistribute_data(sub_ids[ptype][masks[ptype]], maps[ptype], comm)
+
+        rank_halo_assignments = HaloAssignments(
+            field_ids=local_halo_ids,
+            n_field_haloes=len(halo_to_rank),
+            sub_ids=local_subhalo_ids,
+            original_field_ids=original_halo_ids,
         )
-        original_halo_ids = all_halo_assignments.original_field_ids
-        halo_to_rank_length = len(halo_to_rank)
-        assert halo_to_rank.dtype == np.int64, (
-            "Bcast is receiving wrong dtype (bit corruption)."
-        )  # broadcasting is done on assumption it deals with 64-bit data
 
-    else:  # avoid MPI syntax error
-        halo_to_rank = None
-        halo_weights = None
-        total_counts = None
-        rank_loads = None
-        subhalo_info = None
-        original_halo_ids = None
-        halo_to_rank_length = 0
-
-    if comm is not None:
-        halo_to_rank_length = comm.bcast(halo_to_rank_length, root=0)  # this is just an int so bcast
-        logger.info("Rank halo allocations broadcast successfully.")
-
-        if rank != 0:
-            halo_to_rank = np.empty(halo_to_rank_length, dtype=np.int64)  # malloc
-
-        comm.Bcast(halo_to_rank, root=0)  # capital B broadcast for halo_to_rank
-        subhalo_info = (
-            comm.bcast(subhalo_info, root=0) if comm else subhalo_info
-        )  # lowercase b broadcast for the subhalo dataclass (subset of haloes so smaller)
-        original_halo_ids = comm.bcast(original_halo_ids, root=0) if comm else original_halo_ids
-
-        # ranks determine which slab of each dataset they will read
-        slabs = generate_slabs(rank=rank, n_ranks=size, particle_counts=reader.particle_counts)
-
-        # rank 0 tells other ranks what the (Sub)HaloIDs of the particles on their slabs are
-        field_ids = halo_source.distribute_field_ids(
-            slabs=slabs, comm=comm, global_ids=all_halo_assignments.field_ids if rank == 0 else None
-        )
-        sub_ids = halo_source.distribute_sub_ids(
-            slabs=slabs, comm=comm, global_subhalo_ids=all_halo_assignments.sub_ids if rank == 0 else None
+        reader.set_maps(  # store this info on the reader for reading datasets
+            slabs=slabs, masks=masks, maps=maps, comm=comm
         )
 
-    else:
-        slabs = generate_slabs(rank=0, n_ranks=1, particle_counts=reader.particle_counts)
-        field_ids = halo_source.distribute_field_ids(slabs=slabs)
-        sub_ids = halo_source.distribute_sub_ids(slabs=slabs)
-
-    # ranks determine the mapping from their slab to other ranks, and the mask for their own allocation of their slab
-    masks: dict[str, np.ndarray] = {}
-    maps: dict[str, RedistributionMap] = {}
-    local_halo_ids: dict[str, np.ndarray] = {}
-    local_subhalo_ids: dict[str, np.ndarray] | None = {} if sub_ids is not None else None
-
-    for ptype in sorted(field_ids):  # ranks must iterate in same order
-        maps[ptype], masks[ptype] = build_redistribution_map(halo_to_rank, field_ids[ptype], comm)
-        local_halo_ids[ptype] = redistribute_data(field_ids[ptype][masks[ptype]], maps[ptype], comm)
-        if sub_ids is not None:
-            local_subhalo_ids[ptype] = redistribute_data(sub_ids[ptype][masks[ptype]], maps[ptype], comm)
-
-    rank_halo_assignments = HaloAssignments(
-        field_ids=local_halo_ids,
-        n_field_haloes=len(halo_to_rank),
-        sub_ids=local_subhalo_ids,
-        original_field_ids=original_halo_ids,
-    )
-
-    reader.set_maps(  # store this info on the reader for reading datasets
-        slabs=slabs, masks=masks, maps=maps, comm=comm
-    )
-
-    # readers now know where all the data goes, so clear rank 0's HaloID allocation
-    all_halo_assignments = None
-    field_ids = None
-    sub_ids = None
+        # readers now know where all the data goes, so clear rank 0's HaloID allocation
+        all_halo_assignments = None
+        field_ids = None
+        sub_ids = None
 
     # analysis pipeline
-    timings: dict[str, float] = {}
-    memory: dict[str, int] = {}
     packed_data = execute_pipeline(
         config=config,
         internals=internals,
@@ -394,24 +408,28 @@ def analyse_snapshot(
         global_subhalo_info=subhalo_info,
         timings=timings,
         memory=memory,
+        peak_memory=peak_memory,
     )
 
     catalogue_path = output_catalogue_path(snapshot_path=config.snapshot_path, output_dir=config.output_dir)
 
-    write_catalogue(
-        packed_data=packed_data,
-        catalogue_path=catalogue_path,
-        internals=internals,
-        comm=comm,
-    )
+    with timer("Write catalogue", timings=timings, memory=memory, peak_memory=peak_memory, comm=comm):
+        write_catalogue(
+            packed_data=packed_data,
+            catalogue_path=catalogue_path,
+            internals=internals,
+            comm=comm,
+        )
 
     # diagnostics
     if comm is not None:
         all_timings = comm.gather(timings, root=0)
         all_memory = comm.gather(memory, root=0)
+        all_peak_memory = comm.gather(peak_memory, root=0)
     else:
         all_timings = [timings]
         all_memory = [memory]
+        all_peak_memory = [peak_memory]
 
     if rank == 0:
         write_catalogue_headers(
@@ -423,35 +441,39 @@ def analyse_snapshot(
             n_ranks=size,
         )
 
-        if rank == 0:
-            if config.compress_catalogue:
-                try:
-                    repack_catalogue(catalogue_path)
-                except FileNotFoundError:
-                    logger.warning("h5repack not available; indices in catalogue are uncompressed.")
+        if config.compress_catalogue:
+            try:
+                repack_catalogue(catalogue_path)
+            except FileNotFoundError:
+                logger.warning("h5repack not available; indices in catalogue are uncompressed.")
 
-            output_summary(
-                all_timings=all_timings,
-                catalogue_path=catalogue_path,
-                n_ranks=size,
-            )
-            clean_logs(
-                output_dir=config.output_dir,
-                snapshot_path=config.snapshot_path,
-                n_ranks=size,
-                keep_logs=config.keep_logs,
-            )
+        output_summary(
+            all_timings=all_timings,
+            catalogue_path=catalogue_path,
+            n_ranks=size,
+        )
+        clean_logs(
+            output_dir=config.output_dir,
+            snapshot_path=config.snapshot_path,
+            n_ranks=size,
+            keep_logs=config.keep_logs,
+        )
 
         # NOTE: for RASTI paper, store the diagnostic plots
         np.savez(
-        catalogue_path.with_name(catalogue_path.stem + "_diagnostics.npz"),  # need to use the + because _diagnostic is 'invalid suffix'
-        timings=np.array([list(t.values()) for t in all_timings]),  # convert the dict values to a list (they are insertion-ordered)
-        memory=np.array([list(m.values()) for m in all_memory]),   
-        stages=np.array(list(all_timings[0].keys())),
-        halo_weights=halo_weights,
-        total_counts=total_counts,
-        rank_loads=rank_loads,
-        halo_to_rank=halo_to_rank,
+            catalogue_path.with_name(
+                catalogue_path.stem + "_diagnostics.npz"
+            ),  # need to use the + because _diagnostic is 'invalid suffix'
+            timings=np.array(
+                [list(t.values()) for t in all_timings]
+            ),  # convert the dict values to a list (they are insertion-ordered)
+            memory=np.array([list(m.values()) for m in all_memory]),
+            peak_memory=np.array([list(p.values()) for p in all_peak_memory]),
+            stages=np.array(list(all_timings[0].keys())),
+            halo_weights=halo_weights,
+            total_counts=total_counts,
+            rank_loads=rank_loads,
+            halo_to_rank=halo_to_rank,
         )
 
     return catalogue_path
@@ -482,9 +504,10 @@ def generate_config(output_dir: Path = Path(".")) -> None:
 
 @contextmanager
 def timer(
-    label: str, 
-    timings: dict[str, float], 
-    memory: dict[str, float] | None = None,
+    label: str,
+    timings: dict[str, float],
+    memory: dict[str, int] | None = None,
+    peak_memory: dict[str, int] | None = None,
     comm: MPI.Comm | None = None,
 ) -> Generator[None, None, None]:
     """
@@ -499,6 +522,8 @@ def timer(
     timings[label] = elapsed
     if memory is not None:
         memory[label] = psutil.Process().memory_info().rss
+    if peak_memory is not None:
+        peak_memory[label] = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024
     logger.info(f"{label} completed in {elapsed:.1f}s.")
 
 

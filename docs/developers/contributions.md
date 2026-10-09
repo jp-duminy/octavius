@@ -406,7 +406,9 @@ class GilgameshHaloSource(HaloSource):  # inherit HaloSource
 
 ```
 
-Implementing these methods is too catalogue-specific to provide a generic guide. However, the existing halo sources may be a useful reference. Once you are satisfied with your parser, all you need to do is add it to the `build_halo_source()` function:
+Implementing these methods is too catalogue-specific to provide a generic guide. However, the existing halo sources may be a useful reference.
+
+By default rank 0 reads every HaloID with `read_halo_ids()` and the distribute methods hand them out. A source which is too large for one rank (such as the built-in `FOF` finder) can instead set `collective = True` and implement `read_local_halo_ids(ptypes, slabs, comm)`, which every rank calls to return the HaloIDs of its own slabs and the total number of haloes; `analyse_snapshot()` then never gathers the HaloIDs on rank 0. Collective sources cannot carry subhalo information. Once you are satisfied with your parser, all you need to do is add it to the `build_halo_source()` function:
 
 ```python
 def build_halo_source(config: OctaviusConfig, reader: SnapshotReader) -> HaloSource:

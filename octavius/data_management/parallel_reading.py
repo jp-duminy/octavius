@@ -39,6 +39,10 @@ from ..log import get_logger
 
 logger = get_logger()
 
+MPI_MAX_COUNT = 2**31 - 1  # MPI counts and displacements are C ints (MPI-4 large counts are not always available)
+MAX_MESSAGE_BYTES = 2**30  # message size in redistribute_data()'s large-count fallback
+REDISTRIBUTION_TAG = 7301  # MPI tag for the large-count fallback's messages
+
 
 @dataclass(frozen=True, slots=True)
 class RedistributionMap:
@@ -64,26 +68,41 @@ def redistribute_data(
     Consumes the RedistributionMap and redistributes particle-level data from ranks' dataset slabs to the other ranks based on the global rank-halo allocation (from generate_rank_halo_assignments()). Returns:
 
     - received_data: ndarray of the rank's owned data across the slabs
+
+    A single Alltoallv is used where possible; its counts and displacements are C ints, so if any rank would send or
+    receive more than MPI_MAX_COUNT elements, every rank instead exchanges point-to-point messages of at most
+    MAX_MESSAGE_BYTES each (see exchange_in_messages()).
     """
     if comm is None:  # early return for serial case
         return local_data[redistribution_map.send_order]
 
-    from mpi4py.util.dtlib import from_numpy_dtype  # cannot import mpi4py at module-level for serial compatibility
+    from mpi4py import MPI  # cannot import mpi4py at module-level for serial compatibility
+    from mpi4py.util.dtlib import from_numpy_dtype
 
     ordered_data = local_data[redistribution_map.send_order]
 
     if comm.size == 1:
         return ordered_data
 
+    n_cols = (
+        ordered_data.shape[1] if ordered_data.ndim == 2 else 1
+    )  # for 3D columns (pos, vel); slightly inelegant but len() crashes on empty data
+
+    # every rank must take the same path, so agree on the largest buffer any rank sends or receives
+    largest = max(redistribution_map.send_counts.sum(), redistribution_map.rec_counts.sum()) * n_cols
+    if comm.allreduce(int(largest), op=MPI.MAX) > MPI_MAX_COUNT:
+        return exchange_in_messages(
+            ordered_data=ordered_data,
+            send_counts=redistribution_map.send_counts,
+            rec_counts=redistribution_map.rec_counts,
+            comm=comm,
+        )
+
     # displacements for MPI to know where to write memory to
     send_displacements = np.zeros(shape=comm.size, dtype=np.int64)
     send_displacements[1:] = np.cumsum(redistribution_map.send_counts[:-1])
     rec_displacements = np.zeros(comm.size, dtype=np.int64)
     rec_displacements[1:] = np.cumsum(redistribution_map.rec_counts[:-1])
-
-    n_cols = (
-        ordered_data.shape[1] if ordered_data.ndim == 2 else 1
-    )  # for 3D columns (pos, vel); slightly inelegant but len() crashes on empty data
 
     send_counts = redistribution_map.send_counts * n_cols
     rec_counts = redistribution_map.rec_counts * n_cols
@@ -105,6 +124,42 @@ def redistribute_data(
         return np.reshape(
             received_data, shape=(-1, local_data.shape[1])
         )  # -1 means np infers the number of rows from received_data
+    return received_data
+
+
+def exchange_in_messages(
+    ordered_data: np.ndarray,
+    send_counts: np.ndarray,
+    rec_counts: np.ndarray,
+    comm: Comm,
+) -> np.ndarray:
+    """
+    The large-count fallback of redistribute_data(): ordered_data (grouped by destination rank, send_counts rows to
+    each) is sent as non-blocking point-to-point messages of at most MAX_MESSAGE_BYTES, so no MPI count overflows
+    however much data there is. Returns the received rows, grouped by source rank.
+    """
+    from mpi4py import MPI
+
+    row_shape = ordered_data.shape[1:]
+    received_data = np.empty((int(rec_counts.sum()),) + row_shape, dtype=ordered_data.dtype)
+    row_bytes = max(ordered_data.dtype.itemsize * int(np.prod(row_shape)), 1)
+    rows_per_message = max(1, MAX_MESSAGE_BYTES // row_bytes)
+
+    send_offsets = np.concatenate([[0], np.cumsum(send_counts)]).astype(np.int64)
+    rec_offsets = np.concatenate([[0], np.cumsum(rec_counts)]).astype(np.int64)
+    requests = []
+
+    # messages between a pair of ranks with the same tag arrive in the order sent, so chunks pair up in order
+    for source in range(comm.size):
+        for start in range(rec_offsets[source], rec_offsets[source + 1], rows_per_message):
+            stop = min(start + rows_per_message, rec_offsets[source + 1])
+            requests.append(comm.Irecv(received_data[start:stop], source=source, tag=REDISTRIBUTION_TAG))
+    for dest in range(comm.size):
+        for start in range(send_offsets[dest], send_offsets[dest + 1], rows_per_message):
+            stop = min(start + rows_per_message, send_offsets[dest + 1])
+            requests.append(comm.Isend(ordered_data[start:stop], dest=dest, tag=REDISTRIBUTION_TAG))
+
+    MPI.Request.Waitall(requests)
     return received_data
 
 
@@ -163,7 +218,6 @@ def generate_rank_halo_assignments(
 
     - halo_to_rank: an (n_haloes) array where halo_to_rank[i] = rank which halo i is assigned to.
     """
-    logger.info(f"Computing halo assignments for {n_ranks} ranks.")
     ptype_counts = {}
 
     for ptype, halo_ids in halo_assignments.field_ids.items():
@@ -172,6 +226,44 @@ def generate_rank_halo_assignments(
             valid, minlength=halo_assignments.n_field_haloes
         )  # same logic as sum_per_group in aggregate_helpers.py
 
+    return assign_haloes_to_ranks(
+        ptype_counts=ptype_counts, n_field_haloes=halo_assignments.n_field_haloes, config=config, n_ranks=n_ranks
+    )
+
+
+def reduce_halo_member_counts(
+    field_ids: dict[str, np.ndarray], n_field_haloes: int, comm: Comm
+) -> dict[str, np.ndarray] | None:
+    """
+    Collective. For halo sources which leave HaloIDs spread across ranks: sums every rank's per-ptype particle counts
+    per halo onto rank 0, for assign_haloes_to_ranks(). Returns the counts on rank 0 and None elsewhere.
+    """
+    from mpi4py import MPI  # cannot import mpi4py at module-level for serial compatibility
+
+    ptype_counts = {}
+    for ptype in sorted(field_ids):  # ranks must iterate in same order
+        halo_ids = field_ids[ptype]
+        local = np.bincount(halo_ids[halo_ids != -1], minlength=n_field_haloes).astype(np.int64)
+        total = np.empty_like(local) if comm.rank == 0 else None
+        comm.Reduce(local, total, op=MPI.SUM, root=0)
+        ptype_counts[ptype] = total
+
+    return ptype_counts if comm.rank == 0 else None
+
+
+def assign_haloes_to_ranks(
+    ptype_counts: dict[str, np.ndarray],
+    n_field_haloes: int,
+    config: OctaviusConfig,
+    n_ranks: int,
+) -> np.ndarray:
+    """
+    The binning behind generate_rank_halo_assignments(), from the per-ptype particle counts of each halo. Returns:
+
+    - halo_to_rank: an (n_haloes) array where halo_to_rank[i] = rank which halo i is assigned to.
+    """
+    logger.info(f"Computing halo assignments for {n_ranks} ranks.")
+
     haloes_exist = sum(ptype_counts.values()) > 0
     valid_halo_mask = (
         haloes_exist & (ptype_counts["dm"] >= config.min_dm_per_halo) if "dm" in ptype_counts else haloes_exist
@@ -179,14 +271,14 @@ def generate_rank_halo_assignments(
     all_valid_hids = np.flatnonzero(valid_halo_mask)
 
     logger.info(
-        f"{len(all_valid_hids):,} / {halo_assignments.n_field_haloes:,} haloes above the min_dm_per_halo threshold ({config.min_dm_per_halo})."
+        f"{len(all_valid_hids):,} / {n_field_haloes:,} haloes above the min_dm_per_halo threshold ({config.min_dm_per_halo})."
     )
 
     if all_valid_hids.size == 0:  # guard against no-halo snapshots (high-z)
         logger.warning("No valid halo IDs!")
-        return np.full(shape=halo_assignments.n_field_haloes, fill_value=-1, dtype=np.int64)  # match type check
+        return np.full(shape=n_field_haloes, fill_value=-1, dtype=np.int64)  # match type check
 
-    n_valid_haloes = halo_assignments.n_field_haloes  # at this point the reader has remapped HaloIDs to 0-indexed
+    n_valid_haloes = n_field_haloes  # at this point the reader has remapped HaloIDs to 0-indexed
 
     halo_to_rank = np.full(shape=n_valid_haloes, fill_value=-1, dtype=np.int64)
 

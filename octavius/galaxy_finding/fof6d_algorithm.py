@@ -47,7 +47,9 @@ def dispatch_fof6d(
     linking_length: float,
     velocity_factor: float,
     minstars: int,
+    mingas: int,
     star_ptype_code: np.int8,  # explicit data type for numba
+    gas_ptype_code: np.int8,  # explicit data type for numba
 ) -> None:
     """
     Parallelises the galaxy finding by dispatching haloes to different cores; modifies the input parents array in place.
@@ -62,8 +64,9 @@ def dispatch_fof6d(
     for halo_idx in prange(n_haloes):
         s, e = starts[halo_idx], ends[halo_idx]
         n_stars = np.sum(ptype_codes[s:e] == star_ptype_code)
+        n_gas = np.sum(ptype_codes[s:e] == gas_ptype_code)
 
-        if n_stars < minstars:
+        if n_stars < minstars or n_gas < mingas:
             continue
 
         halo_pos = positions[s:e]

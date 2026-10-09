@@ -9,6 +9,20 @@ and there is functionality for concatenating per-rank logs at the end of a run.
 import logging
 from pathlib import Path
 
+# pass as extra= for messages every rank logs identically (e.g. about the config or input files), so the terminal shows
+# them once (from rank 0) rather than once per rank; every rank's log file still records them
+SAME_ON_ALL_RANKS = {"same_on_all_ranks": True}
+
+
+class _RankZeroOnly(logging.Filter):
+    """
+    Drops messages logged with extra=SAME_ON_ALL_RANKS, for the terminal handler of ranks other than 0.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return not getattr(record, "same_on_all_ranks", False)
+
+
 BANNER = """
 ████████████████████████████████████
 ═                                  ═
@@ -47,6 +61,8 @@ def configure_logger(
         getattr(logging, output_level.upper()) if rank == 0 else logging.WARNING
     )  # ranks != 0 only flag any errors
     console.setFormatter(logging.Formatter(terminal_format))
+    if rank != 0:
+        console.addFilter(_RankZeroOnly())  # rank 0 already shows messages common to all ranks
     logger.addHandler(console)  # from the getattr call above, this means output_level defines what you see
 
     if log_dir is not None:

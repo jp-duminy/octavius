@@ -864,8 +864,12 @@ def _combine_centre_of_mass(
     """
     results: dict[str, np.ndarray] = {}
     n_groups = group_store.n_groups
-    anchor_ptype = constituent_ptypes[0]  # since the anchor can be anywhere, use first ptype
-    anchor_com = group_store[f"_pos_{anchor_ptype}"]
+
+    # anchor each group on the CoM of its first ptype with any mass, so the PBC shifts are taken from inside the group
+    anchor_com = np.full(shape=(n_groups, 3), fill_value=np.nan)
+    for pt in reversed(constituent_ptypes):  # reversed, so earlier ptypes overwrite later ones
+        has_mass = group_store[f"mass_{pt}"] > 0
+        anchor_com[has_mass] = group_store[f"_pos_{pt}"][has_mass]
 
     weighted_shift = np.zeros(shape=(n_groups, 3))
     weighted_vel = np.zeros(shape=(n_groups, 3))
@@ -877,10 +881,11 @@ def _combine_centre_of_mass(
 
         shift = pt_com - anchor_com
         shift -= boxsize * np.round(shift / boxsize)
-        weighted_shift += pt_mass * shift
+        weighted_shift += np.where(pt_mass > 0, pt_mass * shift, 0.0)  # a ptype absent from a group adds nothing
         weighted_vel += pt_mass * pt_vel
 
-    combined_com = guarded_divide(numerator=(anchor_com + weighted_shift), denominator=(combined_mass[:, np.newaxis]))
+    # the CoM is the anchor plus the mass-weighted mean shift from it
+    combined_com = anchor_com + guarded_divide(numerator=weighted_shift, denominator=combined_mass[:, np.newaxis])
     combined_com %= boxsize
     combined_vel = guarded_divide(numerator=weighted_vel, denominator=combined_mass[:, np.newaxis])
 

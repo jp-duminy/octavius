@@ -86,6 +86,7 @@ def generate_test_catalogue(
         halo_id_source="SNAPSHOT",
         min_dm_per_halo=0,
         min_stars_per_galaxy=2,
+        min_gas_per_galaxy=0,
         b=1.5,
         velocity_factor=5,
         keep_logs=False,

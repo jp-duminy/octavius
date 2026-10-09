@@ -72,6 +72,7 @@ def assign_membership(
                 winning_subhalo_idx=raw_winners,
                 available_baryonic_ptypes=available_baryonic,
                 minstars=config.min_stars_per_galaxy,
+                mingas=config.min_gas_per_galaxy,
             )
             galaxies = build_galaxy_store(
                 particles=particles,
@@ -196,6 +197,7 @@ def _trim_galaxy_interlopers(
     winning_subhalo_idx: np.ndarray,
     available_baryonic_ptypes: list[str],
     minstars: int,
+    mingas: int,
 ) -> None:
     """
     Enforces the subhalo finder as the authority on substructure boundaries by culling particles of
@@ -216,24 +218,45 @@ def _trim_galaxy_interlopers(
 
         particles[ptype]["GalID"][idx_sorted[interloping]] = -1
 
-    # now we need to trim galaxies which fell below minstars
-    star_offsets, star_idx = galaxies.get_particle_csr(ptype="star")
-    original_star_counts = np.diff(star_offsets)  # for diagnostic
-    star_gal_ids = particles["star"]["GalID"][star_idx]
+    if minstars > 0:
+        # now we need to trim galaxies which fell below minstars
+        star_offsets, star_idx = galaxies.get_particle_csr(ptype="star")
+        original_star_counts = np.diff(star_offsets)  # for diagnostic
+        star_gal_ids = particles["star"]["GalID"][star_idx]
 
-    # get the star count in each galaxy
-    surviving = star_gal_ids >= 0
-    star_galaxy_idx = np.searchsorted(star_offsets, np.arange(len(star_idx)), side="right") - 1  # same logic as above
-    surviving_star_counts = np.bincount(star_galaxy_idx[surviving], minlength=galaxies.n_groups)
-    trim_mask = surviving_star_counts < minstars
-    galaxies_to_trim = trim_mask.nonzero()[0]
+        # get the star count in each galaxy
+        surviving = star_gal_ids >= 0
+        star_galaxy_idx = np.searchsorted(star_offsets, np.arange(len(star_idx)), side="right") - 1  # same logic as above
+        surviving_star_counts = np.bincount(star_galaxy_idx[surviving], minlength=galaxies.n_groups)
+        trim_mask = surviving_star_counts < minstars
+        galaxies_to_trim = trim_mask.nonzero()[0]
 
-    for ptype, (idx_sorted, galaxy_idx) in csr_cache.items():
-        particles[ptype]["GalID"][idx_sorted[trim_mask[galaxy_idx]]] = -1
+        for ptype, (idx_sorted, galaxy_idx) in csr_cache.items():
+            particles[ptype]["GalID"][idx_sorted[trim_mask[galaxy_idx]]] = -1
 
-    n_stars_lost = original_star_counts.sum() - surviving_star_counts[~trim_mask].sum()
-    logger.debug(f"{n_stars_lost} star particles trimmed when deferring to subhalo finder assignments.")
-    logger.debug(f"{len(galaxies_to_trim)} galaxies trimmed.")
+        n_stars_lost = original_star_counts.sum() - surviving_star_counts[~trim_mask].sum()
+        logger.debug(f"{n_stars_lost} star particles trimmed when deferring to subhalo finder assignments.")
+        logger.debug(f"{len(galaxies_to_trim)} galaxies trimmed.")
+
+    if mingas > 0 and "gas" in available_baryonic_ptypes:
+        # now we need to trim galaxies which fell below mingas
+        gas_offsets, gas_idx = galaxies.get_particle_csr(ptype="gas")
+        original_gas_counts = np.diff(gas_offsets)  # for diagnostic
+        gas_gal_ids = particles["gas"]["GalID"][gas_idx]
+
+        # get the gas count in each galaxy
+        surviving = gas_gal_ids >= 0
+        gas_galaxy_idx = np.searchsorted(gas_offsets, np.arange(len(gas_idx)), side="right") - 1  # same logic as above
+        surviving_gas_counts = np.bincount(gas_galaxy_idx[surviving], minlength=galaxies.n_groups)
+        trim_mask = surviving_gas_counts < mingas
+        galaxies_to_trim = trim_mask.nonzero()[0]
+
+        for ptype, (idx_sorted, galaxy_idx) in csr_cache.items():
+            particles[ptype]["GalID"][idx_sorted[trim_mask[galaxy_idx]]] = -1
+
+        n_gas_lost = original_gas_counts.sum() - surviving_gas_counts[~trim_mask].sum()
+        logger.debug(f"{n_gas_lost} gas particles trimmed when deferring to subhalo finder assignments.")
+        logger.debug(f"{len(galaxies_to_trim)} galaxies trimmed.")
 
 
 @njit(cache=True)

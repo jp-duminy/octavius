@@ -42,14 +42,14 @@ hide-toc: true  # remove RHS sidebar
 Features include:
 
 - Support for [SWIFT](https://swift.strw.leidenuniv.nl/) (EAGLE, KIARA, COLIBRE), [SIMBA](https://ui.adsabs.harvard.edu/abs/2019MNRAS.486.2827D/abstract), and [TNG](https://www.tng-project.org/) snapshots
-- Support for [AHF](https://iopscience.iop.org/article/10.1088/0067-0049/182/2/608), [HBT-HERONS](https://hbt-herons.strw.leidenuniv.nl/) and [SUBFIND](https://www.tng-project.org/data/docs/specifications/#sec2b) halo catalogues
+- Support for [AHF](https://iopscience.iop.org/article/10.1088/0067-0049/182/2/608), [HBT-HERONS](https://hbt-herons.strw.leidenuniv.nl/) and [SUBFIND](https://www.tng-project.org/data/docs/specifications/#sec2b) halo catalogues, or built-in friends-of-friends halo finding for snapshots without them
 - Snapshot-agnostic catalogues
 - Built-in galaxy finding with a 6D friends-of-friends algorithm
 - Computes over fifty properties for haloes and galaxies (including subhaloes)
-- Photometry in all [FSPS](https://dfm.io/python-fsps/current/)-compatible bands with dust attenuation (no radiative transfer)
+- Photometry in all [FSPS](https://dfm.io/python-fsps/current/)-registered bands including dust attenuation 
 - User-friendly API for working with output catalogues
-- Comprehensive membership mapping, including hierarchies
-- Standalone analysis tools (on-the-fly pipeline stages)
+- Comprehensive galaxy/halo membership mapping, including halo/subhalo hierarchies
+- Standalone analysis tools including generating individual galaxy spectra
 - Comprehensive unit and regression tests
 
 To get started, please refer to the [installation](getting_started/installation.md) guide; for a brief overview of the package, please see the [five-minute guide](getting_started/five_minute_guide.md).

@@ -52,6 +52,7 @@ class FOF6DParameters:
     velocity_factor: float
     boxsize: float
     minstars: int
+    mingas: int
 
 
 @dataclass(slots=True, frozen=True)
@@ -126,10 +127,12 @@ def find_galaxies(
         linking_length=params.linking_length,
         velocity_factor=params.velocity_factor,
         minstars=params.minstars,
+        mingas=params.mingas,
         star_ptype_code=PTYPE_CODES["star"],
+        gas_ptype_code=PTYPE_CODES["gas"],
     )
 
-    result = extract_galaxies_from_parents(work_data=work_data, parents=parents, minstars=params.minstars)
+    result = extract_galaxies_from_parents(work_data=work_data, parents=parents, minstars=params.minstars, mingas=params.mingas)
 
     store_fof6d_results(particles=particles, result=result)
 
@@ -152,6 +155,7 @@ def prepare_fof6d_data(
     - params: FOF6DParameters dataclass
     """
     star_halo_ids = particles["star"]["HaloID"]
+    has_gas = "gas" in particles
     max_halo_id = max(
         (
             int(particles[pt]["HaloID"].max())
@@ -162,16 +166,21 @@ def prepare_fof6d_data(
     )
     n_haloes = max_halo_id + 1  # this is now the number of field haloes (since that's what we operate on)
     star_counts = np.bincount(
-        star_halo_ids[star_halo_ids >= 0], minlength=n_haloes
-    )  # NOTE: need to mask sentinel value here
+        star_halo_ids[star_halo_ids >= 0], minlength=n_haloes)
+    if has_gas:
+        gas_halo_ids = particles["gas"]["HaloID"]
+        gas_counts = np.bincount(
+            gas_halo_ids[gas_halo_ids >= 0], minlength=n_haloes
+        )  # NOTE: need to mask sentinel value here
+    else:
+        gas_counts = np.zeros_like(star_counts)  # no gas: only passes if min_gas_per_galaxy is 0
 
-    eligible_haloes = np.where(star_counts >= config.min_stars_per_galaxy)[
-        0
-    ]  # disregard haloes which would have no galaxies
+    eligible_haloes = np.where((star_counts >= config.min_stars_per_galaxy) 
+        & (gas_counts >= config.min_gas_per_galaxy))[0]  # disregard haloes which would have no galaxies
     eligible_set = np.zeros(star_counts.shape[0], dtype=bool)
     eligible_set[eligible_haloes] = True
 
-    gas_mask = apply_gas_mask(gas=particles["gas"], constants=constants, config=config)
+    gas_mask = apply_gas_mask(gas=particles["gas"], constants=constants, config=config) if has_gas else None
 
     pos_list, vel_list, ptype_list, index_list, hid_list = [], [], [], [], []
     for ptype in ["star", "gas", "bh"]:
@@ -200,6 +209,7 @@ def prepare_fof6d_data(
         velocity_factor=config.velocity_factor,
         boxsize=simulation.boxsize,
         minstars=config.min_stars_per_galaxy,
+        mingas=config.min_gas_per_galaxy,
     )
 
     # guard if no valid particles pass the mask
@@ -293,6 +303,7 @@ def extract_galaxies_from_parents(
     work_data: FOF6DData,
     parents: np.ndarray,
     minstars: int,
+    mingas: int,
 ) -> FOF6DResult:
     """
     Extracts GalIDs from the parents array returned by the FOF6D algorithm.
@@ -311,8 +322,10 @@ def extract_galaxies_from_parents(
         component_sizes = np.bincount(halo_parents)
         star_mask = work_data.ptype_codes[s:e] == PTYPE_CODES["star"]
         star_counts = np.bincount(halo_parents[star_mask], minlength=len(component_sizes))
+        gas_mask = work_data.ptype_codes[s:e] == PTYPE_CODES["gas"]
+        gas_counts = np.bincount(halo_parents[gas_mask], minlength=len(component_sizes))
 
-        valid_parents = np.where((component_sizes >= minstars) & (star_counts >= minstars))[0]
+        valid_parents = np.where((component_sizes >= minstars) & (star_counts >= minstars) & (gas_counts >= mingas))[0]
 
         if len(valid_parents) == 0:
             continue

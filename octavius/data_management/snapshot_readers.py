@@ -13,7 +13,7 @@ bespoke treatments here and there with overrides and such.
 """
 
 # type checking
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .conventions import OctaviusConstants, OctaviusConfig
@@ -103,11 +103,13 @@ class ColibreReader(SwiftReader):
     def __init__(self, snapshot_path: Path, constants: OctaviusConstants, n_io_chunks: int) -> None:
 
         super().__init__(snapshot_path, constants, n_io_chunks)
-        self.derived_columns: dict[str, Callable] = {
-            "mass_HI": self._derive_mass_HI,
-            "mass_H2": self._derive_mass_H2,
-            "dust_mass": self._derive_dust_mass,
-        }
+        self.derived_columns.update(
+            {
+                "mass_HI": self._derive_mass_HI,
+                "mass_H2": self._derive_mass_H2,
+                "dust_mass": self._derive_dust_mass,
+            }
+        )
 
     def _derive_dust_mass(self, ptype: str = "gas") -> np.ndarray:
         """
@@ -217,6 +219,12 @@ class SimbaReader(GadgetReader):
         raw_halo_ids -= 1  # shift IDs left to compensate with Octavius sentinel
 
         return raw_halo_ids
+
+    def encode_halo_ids(self, halo_ids: np.ndarray) -> np.ndarray:
+        """
+        Maps 0-indexed HaloIDs to GIZMO's convention (1-indexed, with 0 as the sentinel).
+        """
+        return halo_ids.astype(np.int64) + 1
 
     def _derive_mass_HI(self, ptype: str = "gas") -> np.ndarray:
         """

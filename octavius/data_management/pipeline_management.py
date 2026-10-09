@@ -19,7 +19,7 @@ from yaml import safe_load
 from pathlib import Path
 from itertools import product
 
-from ..log import get_logger
+from ..log import SAME_ON_ALL_RANKS, get_logger
 
 logger = get_logger()
 
@@ -268,7 +268,8 @@ def validate_stage_requirements(
         )  # the sort means a requisite will be dropped before we arrive at its dependent
         if missing_deps:
             logger.warning(
-                f"Skipping '{stage.name}': depends on dropped stages {', '.join(sorted(missing_deps))}."  # sort for identical log output between ranks
+                f"Skipping '{stage.name}': depends on dropped stages {', '.join(sorted(missing_deps))}.",  # sort for identical log output between ranks
+                extra=SAME_ON_ALL_RANKS,
             )
             dropped.add(stage.name)
             continue
@@ -280,7 +281,8 @@ def validate_stage_requirements(
             if not viable_ptypes:
                 logger.warning(
                     f"Skipping '{stage.name}': requires ptypes {', '.join(sorted(specific_ptypes))}, "
-                    f"but none are available."
+                    f"but none are available.",
+                    extra=SAME_ON_ALL_RANKS,
                 )
                 dropped.add(stage.name)
                 continue

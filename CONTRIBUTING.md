@@ -1,6 +1,6 @@
 # Contributing to Octavius
 
-Thank you for taking the time to contribute! Octavius warmly welcomes all contributions.
+Thank you for taking the time to contribute! Octavius warmly welcomes all contributions
 
 [I want a quick example](#quick-example)
 

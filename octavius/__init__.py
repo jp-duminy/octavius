@@ -9,6 +9,7 @@ from .utils import (
     generate_simba_snapshot as generate_simba_snapshot,
     repack_catalogue as repack_catalogue,
 )
+from .lightcone import build_lightcone as build_lightcone, load_lightcone as load_lightcone
 
 __all__ = [
     "OctaviusConfig",
@@ -23,4 +24,6 @@ __all__ = [
     "generate_photometry_table",
     "generate_photometry_table_from_sp",
     "repack_catalogue",
+    "build_lightcone",
+    "load_lightcone",
 ]

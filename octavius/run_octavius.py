@@ -68,6 +68,7 @@ from .aggregate_properties import (
 from .photometry import (
     run_photometry,
 )
+from .lightcone import build_lightcone
 from .log import configure_logger, get_logger, clean_logs, instantiation_message, output_summary, BANNER
 from .utils import repack_catalogue
 from .version import __version__
@@ -143,6 +144,45 @@ def parse_args(args: list[str] | None = None) -> argparse.Namespace:
     )
     init_parser.add_argument(
         "-o", "--output", type=Path, default=Path("."), help="Directory where you would like the config file placed."
+    )
+
+    lightcone_parser = subparsers.add_parser(
+        "lightcone", help="Builds lightcones of galaxies or haloes from catalogues at different redshifts."
+    )
+    lightcone_parser.add_argument(
+        "catalogues", type=Path, nargs="+", help="Catalogues of one simulation, in any order."
+    )
+    lightcone_parser.add_argument("-a", "--area", type=float, required=True, help="Field area (deg^2).")
+    lightcone_parser.add_argument("--z-min", type=float, required=True, help="Minimum (cosmological) redshift.")
+    lightcone_parser.add_argument("--z-max", type=float, required=True, help="Maximum (cosmological) redshift.")
+    lightcone_parser.add_argument(
+        "-o",
+        "--output",
+        type=Path,
+        default=Path("lightcone.hdf5"),
+        help="Output file; with several lightcones, _000, _001, ... is appended to the stem.",
+    )
+    lightcone_parser.add_argument("-g", "--group-type", choices=["galaxies", "haloes"], default="galaxies")
+    lightcone_parser.add_argument("--shape", choices=["square", "circle"], default="square", help="Field shape.")
+    lightcone_parser.add_argument(
+        "-p", "--properties", nargs="+", default=[], help="Catalogue datasets to copy into the lightcone."
+    )
+    lightcone_parser.add_argument("-n", "--n-lightcones", type=int, default=1, help="Number of lightcones.")
+    lightcone_parser.add_argument("--seed", type=int, default=None, help="Random seed (stored in the output).")
+    lightcone_parser.add_argument(
+        "--redshift-space", action="store_true", help="Also compute z_obs, including peculiar velocities."
+    )
+    lightcone_parser.add_argument(
+        "--randomise",
+        choices=["snapshot", "replica", "none"],
+        default="snapshot",
+        help="How often to draw a new random box transform.",
+    )
+    lightcone_parser.add_argument("--position-column", default=None, help="Catalogue dataset placing each object.")
+    lightcone_parser.add_argument("--velocity-column", default=None, help="Catalogue dataset of peculiar velocities.")
+    lightcone_parser.add_argument("--overwrite", action="store_true", help="Replace existing output files.")
+    lightcone_parser.add_argument(
+        "--quiet", action="store_true", required=False, help="Suppress all terminal output bar warnings."
     )
 
     return parser.parse_args(args=args)
@@ -510,8 +550,8 @@ def timer(label: str, timings: dict[str, float]) -> Generator[None, None, None]:
 
 def main() -> None:
     """
-    main() function; currently branches on the init (config generation) and analyse
-    (analyse snapshot) paths from the command line.
+    main() function; currently branches on the init (config generation), analyse
+    (analyse snapshot) and lightcone (build lightcones from catalogues) paths from the command line.
     """
     args = parse_args()
 
@@ -541,6 +581,26 @@ def main() -> None:
             )
 
         analyse_snapshot(config=config)
+
+    elif args.command == "lightcone":
+        configure_logger(snapshot_path=args.output.stem, output_level="WARNING" if args.quiet else "INFO")
+        build_lightcone(
+            catalogue_paths=args.catalogues,
+            output_path=args.output,
+            area=args.area,
+            z_min=args.z_min,
+            z_max=args.z_max,
+            group_type=args.group_type,
+            field_shape=args.shape,
+            properties=args.properties,
+            n_lightcones=args.n_lightcones,
+            seed=args.seed,
+            redshift_space=args.redshift_space,
+            randomise=args.randomise,
+            position_column=args.position_column,
+            velocity_column=args.velocity_column,
+            overwrite=args.overwrite,
+        )
 
 
 if __name__ == "__main__":

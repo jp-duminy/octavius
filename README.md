@@ -50,6 +50,7 @@ Octavius is packaged on pip, with a planned conda-forge deployment in the near-f
 - User-friendly API for working with analysis catalogues
 - Comprehensive membership mapping, including hierarchies
 - Standalone analysis tools (on-the-fly pipeline stages)
+- Galaxy and halo lightcones from catalogues
 - Comprehensive unit and regression tests
 
 ## Quickstart Guide

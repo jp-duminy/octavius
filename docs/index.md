@@ -50,6 +50,7 @@ Features include:
 - User-friendly API for working with output catalogues
 - Comprehensive galaxy/halo membership mapping, including halo/subhalo hierarchies
 - Standalone analysis tools including generating individual galaxy spectra
+- Galaxy and halo lightcones built from catalogues, with optional redshift-space distortions
 - Comprehensive unit and regression tests
 
 To get started, please refer to the [installation](getting_started/installation.md) guide; for a brief overview of the package, please see the [five-minute guide](getting_started/five_minute_guide.md).

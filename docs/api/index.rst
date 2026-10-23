@@ -9,4 +9,5 @@ API Reference
    analysis
    configuration
    photometry
+   lightcones
    utilities

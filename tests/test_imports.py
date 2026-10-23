@@ -14,14 +14,14 @@ def test_external_dependencies() -> None:
     import numba
     import h5py
     import astropy.units as u
-    import mpi4py
+    from mpi4py import MPI
 
     # random operations so ruff does not delete the imports
     assert np.array([1, 2, 3]).sum() == 6
     assert numba.njit(lambda x: x + 1)(1) == 2
     assert u.kpc.to(u.cm) > 0
     assert h5py.string_dtype() is not None
-    assert mpi4py.MPI.COMM_WORLD.Get_size() >= 1
+    assert MPI.COMM_WORLD.Get_size() >= 1
 
 
 def test_package_imports() -> None:

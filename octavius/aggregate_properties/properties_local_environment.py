@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 # other packages
 import numpy as np
 from scipy.spatial import KDTree  # remember, always pass boxsize
+from numba import njit, prange
 
 # internal imports
 from ..log import get_logger
@@ -151,3 +152,74 @@ def compute_galaxy_aperture_masses(  # FIXME: aperture masses of galaxies at edg
     results[f"mass_total_{int(aperture_size)}kpc"] = result[:, : len(ptypes)].sum(axis=1)
 
     return results
+
+
+@njit(cache=True, parallel=True)
+def distribute_halo_hydrogen(
+    gas_pos: np.ndarray,
+    gas_mass_HI: np.ndarray,
+    gas_mass_H2: np.ndarray,
+    gas_galaxy_ids: np.ndarray,
+    field_gas_offsets: np.ndarray,
+    gas_idx_sorted: np.ndarray,
+    field_gal_offsets: np.ndarray,
+    field_gal_idx: np.ndarray,
+    gal_pos: np.ndarray,
+    gal_mass: np.ndarray,
+    boxsize: float,
+    n_galaxies: int,
+    n_haloes: int,
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Distributes the HI and H2 in a halo amongst its galaxies, matching Caesar behaviour. This time gated behind a config
+    call.
+
+    I appreciate the variable names here are a tad confusing at first.
+    """
+    assigned_HI = np.zeros(shape=n_galaxies, dtype=np.float64)
+    assigned_H2 = np.zeros(shape=n_galaxies, dtype=np.float64)
+    half_box = 0.5 * boxsize
+
+    for halo in prange(n_haloes):
+        gal_start, gal_end = field_gal_offsets[halo], field_gal_offsets[halo + 1]
+
+        if gal_start == gal_end:  # haloes with no galaxies
+            continue
+
+        for gas_idx in range(field_gas_offsets[halo], field_gas_offsets[halo + 1]):
+            particle = gas_idx_sorted[gas_idx]
+
+            if gas_mass_HI[particle] == 0.0 and gas_mass_H2[particle] == 0.0:  # particle with no HI/H2
+                continue
+
+            if gas_galaxy_ids[particle] != -1:  # particle already belongs to galaxy
+                continue
+
+            best_galaxy = -1
+            best_weight = -1.0
+
+            for galaxy_idx in range(gal_start, gal_end):
+                galaxy = field_gal_idx[galaxy_idx]
+
+                dist_sq = 0.0
+                for axis in range(3):  # PBC-aware squared distance
+                    delta = gas_pos[particle, axis] - gal_pos[galaxy, axis]
+                    if delta > half_box:
+                        delta -= boxsize
+                    elif delta < -half_box:
+                        delta += boxsize
+                    dist_sq += delta * delta
+
+                if dist_sq == 0.0:  # shouldn't be hit in principle but avoids a runtime error
+                    best_galaxy = galaxy
+                    break
+
+                weight = gal_mass[galaxy] / dist_sq  # mass-weighted distance
+                if weight > best_weight:
+                    best_weight, best_galaxy = weight, galaxy
+
+            if best_galaxy >= 0:
+                assigned_HI[best_galaxy] += gas_mass_HI[particle]
+                assigned_H2[best_galaxy] += gas_mass_H2[particle]
+
+    return assigned_HI, assigned_H2

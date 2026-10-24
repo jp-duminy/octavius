@@ -864,8 +864,17 @@ def _combine_centre_of_mass(
     """
     results: dict[str, np.ndarray] = {}
     n_groups = group_store.n_groups
-    anchor_ptype = constituent_ptypes[0]  # since the anchor can be anywhere, use first ptype
-    anchor_com = group_store[f"_pos_{anchor_ptype}"]
+
+    # anchor for the overall group
+    # we must avoid anchoring to an empty ptype group so loop over ptypes and use most massive
+    anchor_com = np.zeros(shape=(n_groups, 3))
+    anchor_mass = np.full(shape=n_groups, fill_value=-1.0)
+
+    for ptype in constituent_ptypes:  # same as the global minimum potential logic
+        ptype_mass = group_store[f"mass_{ptype}"]
+        heavier = ptype_mass > anchor_mass
+        anchor_com[heavier] = group_store[f"_pos_{ptype}"][heavier]
+        anchor_mass[heavier] = ptype_mass[heavier]
 
     weighted_shift = np.zeros(shape=(n_groups, 3))
     weighted_vel = np.zeros(shape=(n_groups, 3))
@@ -880,7 +889,7 @@ def _combine_centre_of_mass(
         weighted_shift += pt_mass * shift
         weighted_vel += pt_mass * pt_vel
 
-    combined_com = guarded_divide(numerator=(anchor_com + weighted_shift), denominator=(combined_mass[:, np.newaxis]))
+    combined_com = anchor_com + guarded_divide(numerator=weighted_shift, denominator=combined_mass[:, np.newaxis])
     combined_com %= boxsize
     combined_vel = guarded_divide(numerator=weighted_vel, denominator=combined_mass[:, np.newaxis])
 

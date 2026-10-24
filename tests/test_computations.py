@@ -29,6 +29,7 @@ from octavius.aggregate_properties.aggregate_helpers import (
 )
 
 from octavius.aggregate_properties.properties_core import _combine_centre_of_mass
+from octavius.aggregate_properties.properties_local_environment import distribute_halo_hydrogen
 
 
 from octavius.data_management import (
@@ -419,4 +420,41 @@ def test_combined_com() -> None:
         results["com_vel_baryon"],
         expected_vel,
         err_msg="test_combined_com failed: velocities do not match",
+    )
+
+
+def test_halo_gas_redistribution() -> None:
+    """
+    Tests whether the distribute_halo_hydrogen function will give all of a halo's HI and H2 to
+    a lone galaxy if the config flag is enabled.
+    """
+    # galaxy with no gas, but its halo has 3 gas particles with some HI and H2
+    # only 3 particles so the index stuff is easy to hand write
+    gas_pos = np.array([[1.0, 0.0, 0.0], [0.0, 2.0, 0.0], [0.0, 0.0, 3.0]], dtype=np.float64)
+    gas_mass_HI = np.array([1.0, 2.0, 3.0], dtype=np.float64)
+    gas_mass_H2 = np.array([0.5, 0.5, 0.5], dtype=np.float64)
+    gas_galaxy_ids = np.full(3, -1, dtype=np.int64)
+
+    assigned_HI, assigned_H2 = distribute_halo_hydrogen(
+        gas_pos=gas_pos,
+        gas_mass_HI=gas_mass_HI,
+        gas_mass_H2=gas_mass_H2,
+        gas_galaxy_ids=gas_galaxy_ids,
+        field_gas_offsets=np.array([0, 3], dtype=np.int64),
+        gas_idx_sorted=np.arange(3, dtype=np.int64),
+        field_gal_offsets=np.array([0, 1], dtype=np.int64),
+        field_gal_idx=np.array([0], dtype=np.int64),
+        gal_pos=np.zeros((1, 3), dtype=np.float64),
+        gal_mass=np.array([1.0e10], dtype=np.float64),
+        boxsize=100.0,
+        n_galaxies=1,
+        n_haloes=1,
+    )
+
+    np.testing.assert_allclose(
+        assigned_HI[0], np.sum(gas_mass_HI), err_msg="test_halo_gas_redistribution failed: not all HI went to galaxy."
+    )
+
+    np.testing.assert_allclose(
+        assigned_H2[0], np.sum(gas_mass_H2), err_msg="test_halo_gas_redistribution failed: not all H2 went to galaxy."
     )

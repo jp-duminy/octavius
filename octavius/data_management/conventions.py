@@ -119,6 +119,7 @@ class OctaviusConfig:
     aperture_size: list[int] = field(default_factory=lambda: [30])
     virial_factors: list[int] = field(default_factory=lambda: [200, 500, 2500])
     halo_centre: str = "MIN_POT"
+    distribute_halo_hydrogen: bool = False
 
     b: float = 0.02
     velocity_factor: float = 1.0

@@ -93,6 +93,7 @@ stages:
         over:
           ptype: [gas, star, dm, bh, HI, H2, total]
           aperture: from_config:aperture_size
+      - columns: ["mass_HI_diffuse", "mass_H2_diffuse"]
 
   photometry:
     label: photometry
@@ -136,11 +137,23 @@ output_columns:
     a_exp:       0
     description: "Neutral atomic hydrogen mass."
 
+  mass_HI_diffuse:
+    dtype:       float64
+    unit:        "Msun"
+    a_exp:       0
+    description: "Diffuse neutral atomic hydrogen mass, which is the component of the field halo's HI which was not assigned to any galaxy but is closest to this galaxy by mass-weighted distance."
+
   mass_H2:
     dtype:       float64
     unit:        "Msun"
     a_exp:       0
     description: "Molecular hydrogen mass."
+
+  mass_H2_diffuse:
+    dtype:       float64
+    unit:        "Msun"
+    a_exp:       0
+    description: "Diffuse molecular hydrogen mass, which is the component of the field halo's H2 which was not assigned to any galaxy but is closest to this galaxy by mass-weighted distance."
 
   minpot_pos:
     dtype:       float64

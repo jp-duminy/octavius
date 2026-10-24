@@ -109,6 +109,10 @@ Please note disabling a particle entirely may have unintended consequences: for 
 
 `virial_factors`: a list of the overdensity threshold(s) for which halo virial quantities are computed (default: `[200, 500, 2500]`).
 
+`halo_centre`: whether to use the position and velocity vector of the particle at the minimum potential or the centre-of-mass as the reference point for the centre of each halo (default: `MIN_POT`).
+
+`distribute_halo_hydrogen`: as part of the local environment properties, assigns each galaxy a diffuse HI and H2 component determined by the closest mass-weighted distance of gas particles in the field halo which were not already assigned to galaxies (default: `False`).
+
 (photometry-parameters)=
 ## Photometry Parameters
 

@@ -683,8 +683,8 @@ def _compute_mass_profile_quantities(
     """
     Computes mass profile quantities (virial and vmax/rmax), (which as of 19/06/26 are only required for haloes). Returns a dict of:
 
-    - radius_{f}c for f in {factors}
-    - mass_{f}c
+    - r{f}c for f in {factors}
+    - m{f}c
     - vmax
     - rmax
     """
@@ -701,8 +701,8 @@ def _compute_mass_profile_quantities(
     )
 
     for f, factor in enumerate(factors.astype(int)):  # cast array to ints for f-string name
-        results[f"radius_{factor}c"] = virial_radius[:, f]
-        results[f"mass_{factor}c"] = virial_mass[:, f]
+        results[f"r{factor}c"] = virial_radius[:, f]
+        results[f"m{factor}c"] = virial_mass[:, f]
 
     vmax, rmax = compute_vmax_and_rmax(
         radii=radii,

@@ -66,8 +66,6 @@ class OctaviusConfig:
     Notes
     -----
 
-    - 'b' controls what fraction of the mean interparticle separation the linking length is. This is usually set to 0.02.
-    - 'velocity_factor' is in units of the local velocity dispersion, and controls how many standard deviations from the local velocity dispersion a particle considers its neighbours to be linked in phase space.
     - FRAD is the radiative efficiency (in the accretion formula, usually 0.1).
     - MU is the mean molecular weight (in the virial scaling formulae, usually 0.6)
     - n_io_chunks does not represent chunking through the full pipeline, rather, chunking on reading datasets. This is to alleviate stress on filesystems from multiple ranks simultaneously requesting multi-GB reads, but in practice leaving this at 10 is fine.
@@ -346,6 +344,7 @@ class DatasetUnits:
     a_exponent: int = 0
 
 
+# TODO: combine CODE_UNITS and DTYPES into one central abstraction
 CODE_UNITS = {
     "pos": DatasetUnits(unit=u.kpc, a_exponent=1),  # kpc * a
     "vel": DatasetUnits(unit=(u.km / u.s)),  # peculiar
@@ -373,6 +372,7 @@ CODE_UNITS = {
     "smoothing_length": DatasetUnits(unit=u.kpc, a_exponent=1),  # ckpc
 }
 
+# TODO: allow particle float datasets to be dropped to 32-bit in config, hardcode ID datatypes
 DTYPES = {
     "particle_id": np.int64,
     "ptype": np.int8,  # this allows up to 256 ptypes
@@ -391,6 +391,7 @@ DTYPES = {
     "age": np.float64,
     "bhmass": np.float64,
     "bhmdot": np.float64,
+    "smoothing_length": np.float64,
     # NOTE: external halo readers (AHF) sometimes store absurdly large integers for HIDs
     "HaloID": np.int64,
     "GalID": np.int64,
@@ -405,6 +406,7 @@ DTYPES = {
 }
 
 
+# FIXME: currently pinned to default GIZMO only
 def gadget_unit_conversion_factor(dataset: str, h: float, a: float) -> float:
     """
     Factors for converting standard GADGET units to internal code units.

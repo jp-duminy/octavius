@@ -567,6 +567,7 @@ class GadgetReader(SnapshotReader):
 
         return self.simulation_attributes
 
+    # FIXME: currently only works for default units, doesn't parse exotic snapshot code units
     def _unit_conversion_factor(self, dataset: str, hdf5_dataset: h5py.Dataset) -> float:
         """
         Calls unit conversion factors from Gizmo documentation.

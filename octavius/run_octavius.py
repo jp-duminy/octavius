@@ -440,13 +440,13 @@ def analyse_snapshot(
     return catalogue_path
 
 
-def generate_config(output_dir: Path = Path(".")) -> None:
+def generate_config(output_dir: Path | str = Path(".")) -> None:
     """
     Generates a default config.yaml file in the requested output directory.
 
     Parameters
     ----------
-    output_dir: pathlib.Path
+    output_dir: pathlib.Path or str
         Path object pointing to the output directory where the config.yaml file should be generated.
         Default: the current working directory.
 
@@ -454,6 +454,7 @@ def generate_config(output_dir: Path = Path(".")) -> None:
     -----
     The file will be named octavius_config.yaml by default.
     """
+    output_dir = Path(output_dir)
     default = CONFIG_PATH
     target = output_dir / "octavius_config.yaml"
 

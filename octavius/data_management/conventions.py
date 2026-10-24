@@ -147,6 +147,12 @@ class OctaviusConfig:
         """
         Post-initialisation validation of both sensible and valid config parameters to prevent errors at runtime.
         """
+        # auto expand Paths and coerce strings to Paths
+        for field_name in FILEPATHS:
+            value = getattr(self, field_name)
+            if value is not None:
+                object.__setattr__(self, field_name, Path(value).expanduser())
+
         # uppercase all strings which are expected to be uppercase
         for f in fields(self):
             value = getattr(self, f.name)
@@ -190,14 +196,14 @@ class OctaviusConfig:
             object.__setattr__(self, "bands", resolve_band_names(self.bands, names, lambda_effs))
 
     @classmethod
-    def from_yaml(cls, config_path: Path, **overrides: Any) -> OctaviusConfig:
+    def from_yaml(cls, config_path: Path | str, **overrides: Any) -> OctaviusConfig:
         """
         Parses an octavius_config.yaml parameter file into the dataclass used internally.
         Names of entries themselves and the file layout must not be changed.
 
         Parameters
         ----------
-        config_path: pathlib.Path
+        config_path: pathlib.Path or str
             Path object pointing to the config file.
         **overrides: Any
             Any overrides to config fields specified in the YAML.
@@ -207,15 +213,12 @@ class OctaviusConfig:
         config: OctaviusConfig
             The config dataclass.
         """
+        config_path = Path(config_path)  # coerce to Path object
+
         with open(config_path, "r") as f:
             raw = safe_load(f)
 
         flat = _flatten_config(raw)
-
-        for key in FILEPATHS:
-            if key in flat and flat[key] is not None:
-                flat[key] = Path(flat[key]).expanduser()
-
         flat.update(overrides)
 
         return cls(**flat)  # keyword unpacking saves us from a 35 argument instantiation

@@ -77,6 +77,8 @@ Please note disabling a particle entirely may have unintended consequences: for 
 
 `min_stars_per_galaxy`: the minimum number of stars a cluster of baryonic particles must contain to be considered a galaxy (default: `16`).
 
+`min_gas_per_galaxy`: the minimum number of gas particles a cluster of baryonic particles must contain to be considered a galaxy, considered in tandem with `min_stars_per_galaxy` (default: `0`).
+
 `min_dm_per_halo`: the minimum number of dark matter particles a halo should contain. Haloes below this threshold are disregarded during analysis and will not appear in the catalogue (default: `24`).
 
 `nH_lim`: the density, in $n_{H} \ cm^{-3}$, above which gas is considered dense. Used to locate dense gas in the FOF6D algorithm, and to define CGM quantities for haloes (default: `0.13`).

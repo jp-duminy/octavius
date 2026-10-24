@@ -101,6 +101,7 @@ class OctaviusConfig:
     )
 
     min_stars_per_galaxy: int = 16
+    min_gas_per_galaxy: int = 0
     min_dm_per_halo: int = 24
 
     nH_lim: float = 0.13

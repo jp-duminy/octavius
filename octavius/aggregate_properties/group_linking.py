@@ -72,6 +72,7 @@ def assign_membership(
                 winning_subhalo_idx=raw_winners,
                 available_baryonic_ptypes=available_baryonic,
                 minstars=config.min_stars_per_galaxy,
+                mingas=config.min_gas_per_galaxy,
             )
             galaxies = build_galaxy_store(
                 particles=particles,
@@ -196,6 +197,7 @@ def _trim_galaxy_interlopers(
     winning_subhalo_idx: np.ndarray,
     available_baryonic_ptypes: list[str],
     minstars: int,
+    mingas: int,
 ) -> None:
     """
     Enforces the subhalo finder as the authority on substructure boundaries by culling particles of
@@ -216,24 +218,31 @@ def _trim_galaxy_interlopers(
 
         particles[ptype]["GalID"][idx_sorted[interloping]] = -1
 
-    # now we need to trim galaxies which fell below minstars
-    star_offsets, star_idx = galaxies.get_particle_csr(ptype="star")
-    original_star_counts = np.diff(star_offsets)  # for diagnostic
-    star_gal_ids = particles["star"]["GalID"][star_idx]
+    # now we need to trim galaxies which fell below the thresholds
+    trim_mask = np.zeros(galaxies.n_groups, dtype=bool)
+    thresholds: dict[str, int] = {"star": minstars, "gas": mingas}  # trim for minstars and mingas
+    original_counts: dict[str, int] = {}
+    surviving_counts: dict[str, np.ndarray] = {}
 
-    # get the star count in each galaxy
-    surviving = star_gal_ids >= 0
-    star_galaxy_idx = np.searchsorted(star_offsets, np.arange(len(star_idx)), side="right") - 1  # same logic as above
-    surviving_star_counts = np.bincount(star_galaxy_idx[surviving], minlength=galaxies.n_groups)
-    trim_mask = surviving_star_counts < minstars
-    galaxies_to_trim = trim_mask.nonzero()[0]
+    for ptype, threshold in thresholds.items():
+        if ptype not in csr_cache:  # this shouldn't be hit in practice because this doesn't run if FOF6D doesn't
+            continue
+        idx_sorted, galaxy_idx = csr_cache[ptype]
+        surviving = particles[ptype]["GalID"][idx_sorted] >= 0
+        surviving_counts[ptype] = np.bincount(galaxy_idx[surviving], minlength=galaxies.n_groups)
+        original_counts[ptype] = len(idx_sorted)
+        trim_mask |= surviving_counts[ptype] < threshold
 
-    for ptype, (idx_sorted, galaxy_idx) in csr_cache.items():
+    for ptype, (idx_sorted, galaxy_idx) in csr_cache.items():  # overwrite their GalIDs with -1
         particles[ptype]["GalID"][idx_sorted[trim_mask[galaxy_idx]]] = -1
 
-    n_stars_lost = original_star_counts.sum() - surviving_star_counts[~trim_mask].sum()
-    logger.debug(f"{n_stars_lost} star particles trimmed when deferring to subhalo finder assignments.")
-    logger.debug(f"{len(galaxies_to_trim)} galaxies trimmed.")
+    for ptype, original_count in original_counts.items():
+        n_surviving = np.sum(surviving_counts[ptype][~trim_mask])
+        logger.debug(
+            f"{original_count - n_surviving} {ptype} particles trimmed when deferring to subhalo finder assignments."
+        )
+
+    logger.debug(f"{np.count_nonzero(trim_mask)} galaxies trimmed.")
 
 
 @njit(cache=True)

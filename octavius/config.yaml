@@ -23,6 +23,7 @@ process_ptypes:  # WARNING: removes ptype entirely, e.g. star: false prevents ga
 
 thresholds:
   min_stars_per_galaxy:   16
+  min_gas_per_galaxy:     0
   min_dm_per_halo:        24        # haloes below this threshold will not appear in the catalogue
   nH_lim:                 0.13      # density above which gas is considered dense
   T_lim:                  1.0e+5    # temperature below which gas is considered cold

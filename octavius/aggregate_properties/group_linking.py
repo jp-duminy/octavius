@@ -171,7 +171,7 @@ def assign_galaxy_halo_indices(
     for ptype in available_baryonic_ptypes:
         offsets, idx_sorted = galaxies.get_particle_csr(ptype=ptype)
         all_subhids.append(particles[ptype]["SubhaloID"][idx_sorted])
-        group_idx = np.searchsorted(offsets, np.arange(len(idx_sorted)), side="right") - 1
+        group_idx = np.repeat(np.arange(galaxies.n_groups, dtype=np.int64), np.diff(offsets))
         all_galaxy_idx.append(group_idx)
 
     subhids, galaxy_idx = np.concatenate(all_subhids), np.concatenate(all_galaxy_idx)
@@ -206,9 +206,7 @@ def _trim_galaxy_interlopers(
     csr_cache: dict[str, tuple[np.ndarray, np.ndarray]] = {}  # so the reassignment can be vectorised
     for ptype in available_baryonic_ptypes:
         offsets, idx_sorted = galaxies.get_particle_csr(ptype=ptype)
-        galaxy_idx = (
-            np.searchsorted(offsets, np.arange(len(idx_sorted)), side="right") - 1
-        )  # (RHS-1) gives the position in offsets which is the galaxy ID
+        galaxy_idx = np.repeat(np.arange(galaxies.n_groups, dtype=np.int64), np.diff(offsets))
         sub_ids = particles[ptype]["SubhaloID"][idx_sorted]
         csr_cache[ptype] = (idx_sorted, galaxy_idx)
 

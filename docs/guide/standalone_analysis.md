@@ -77,24 +77,20 @@ galaxies_of_interest = [0, 1, 3, 22, 47]  # or array
 side_on_result = analyser.compute_photometry(
     group_indices=galaxies_of_interest, orientation="side-on", keep_spectra=True
 )
-side_on_spectra = side_on_spectra.columns["spectra"]
+side_on_spectra = side_on_result["spectra"]
 
 # rotate 90 degrees about the x-axis
 from scipy.spatial.transform import Rotation
 rotation_matrix = Rotation.from_rotvec(np.pi / 2 * np.array([1, 0, 0])).as_matrix()
 
 rotated_result = analyser.compute_photometry(
-    group_indices=[0, 1, 2], orientation=rotation_matrix, keep_spectra=True
+    group_indices=galaxies_of_interest, orientation=rotation_matrix, keep_spectra=True
 )
-rotated_spectra = rotated_spectra.columns["spectra"]
+rotated_spectra = rotated_result["spectra"]
 ```
 
 :::{note}
 Line-of-sight extinction is computed along the axis specified by `viewing_axis` in the config. If using `face-on` or `side-on` shorthands, the axis will be adjusted automatically. 
-:::
-
-:::{tip}
-Photometry will need to use gas from the parent field haloes for dust extinction. This is handled internally, but it means `halo_data` must be present in the HDF5 catalogue for standalone photometry to work. 
 :::
 
 (usage-local-densities)=

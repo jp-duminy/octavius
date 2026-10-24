@@ -190,7 +190,7 @@ class OctaviusAnalyser:
         keep_spectra: bool
             Whether or not to keep the galaxy spectra (uses more memory). Default: ``False``
         orientation: str | np.ndarray | None
-            Orientation to rotate the galaxies into. ``edge-on`` and ``side-on`` are available, or a bespoke (3, 3) rotation
+            Orientation to rotate the galaxies into. ``face-on`` and ``side-on`` are available, or a bespoke (3, 3) rotation
             matrix can be passed. If left blank, the default positions will be used.
 
         Returns

@@ -107,7 +107,7 @@ def generate_simba_snapshot(path: Path) -> None:
         gas.create_dataset("FractionH2", data=gas_specific["mass_H2"] / gas_base["mass"])
         gas.create_dataset("Metallicity", data=gas_specific["metallicity"])
         gas.create_dataset("Dust_Masses", data=gas_specific["dust_mass"])
-        gas.create_dataset("SmoothingLength", data=gas_specific["smoothing_length"])
+        gas.create_dataset("SmoothingLength", data=gas_specific["smoothing_length"] * h)
 
         # dm datasets
         dm = f.create_group("PartType1")
@@ -301,7 +301,7 @@ def generate_tng_snapshot(path: Path, subfind_path: Path) -> None:
         gas.create_dataset("StarFormationRate", data=gas_specific["sfr"])
         gas.create_dataset("GFM_Metallicity", data=gas_metals[:, 0])  # scalar total metallicity
         gas.create_dataset("GFM_Metals", data=gas_metals)  # 10-element composition
-        gas.create_dataset("SubfindHsml", data=gas_specific["smoothing_length"])
+        gas.create_dataset("SubfindHsml", data=gas_specific["smoothing_length"] * h)
 
         # no masses for dm
         dm = f.create_group("PartType1")

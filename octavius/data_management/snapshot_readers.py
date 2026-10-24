@@ -13,7 +13,7 @@ bespoke treatments here and there with overrides and such.
 """
 
 # type checking
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .conventions import OctaviusConstants, OctaviusConfig
@@ -103,11 +103,13 @@ class ColibreReader(SwiftReader):
     def __init__(self, snapshot_path: Path, constants: OctaviusConstants, n_io_chunks: int) -> None:
 
         super().__init__(snapshot_path, constants, n_io_chunks)
-        self.derived_columns: dict[str, Callable] = {
-            "mass_HI": self._derive_mass_HI,
-            "mass_H2": self._derive_mass_H2,
-            "dust_mass": self._derive_dust_mass,
-        }
+        self.derived_columns.update(
+            {
+                "mass_HI": self._derive_mass_HI,
+                "mass_H2": self._derive_mass_H2,
+                "dust_mass": self._derive_dust_mass,
+            }
+        )
 
     def _derive_dust_mass(self, ptype: str = "gas") -> np.ndarray:
         """

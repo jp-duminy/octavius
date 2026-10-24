@@ -360,6 +360,11 @@ class SwiftReader(SnapshotReader):
         "helium_fraction": 1,  # slice of 2D datasets
     }
 
+    def __init__(self, snapshot_path: Path, constants: OctaviusConstants, n_io_chunks: int) -> None:
+
+        super().__init__(snapshot_path, constants, n_io_chunks)
+        self.derived_columns: dict[str, Callable] = {"sfr": self._derive_sfr}
+
     def read_header(self) -> SimulationAttributes:
         """
         Parses header attributes into a dataclass (does derived quantities too). SWIFT can do simulations with evolving dark energy, so we use flat w0wa cdm cosmology, which reduces to flat lambda cdm when wa = 0; SWIFT also splits the header into cosmology and header fields.
@@ -464,6 +469,15 @@ class SwiftReader(SnapshotReader):
         raw_halo_ids[sentinel_mask] = -1
 
         return raw_halo_ids
+
+    def _derive_sfr(self, ptype: str = "gas") -> np.ndarray:
+        """
+        Sets the negative SFRs stored in SWIFT snapshots to 0.
+        """
+        sfrs = self._read_raw(ptype=ptype, dataset="sfr")
+        np.maximum(sfrs, 0.0, out=sfrs)
+
+        return sfrs
 
 
 class GadgetReader(SnapshotReader):

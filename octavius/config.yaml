@@ -50,6 +50,7 @@ properties:
   aperture_size:    [30]                # kpc
   virial_factors:   [200, 500, 2500]    # factor * critical density
   halo_centre:      MIN_POT
+  distribute_halo_hydrogen: false       # calculates diffuse HI and H2 galaxy gas components
 
 
 photometry:

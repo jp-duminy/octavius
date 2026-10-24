@@ -67,6 +67,7 @@ def mock_catalogue(
         min_dm_per_halo=0,
         min_stars_per_galaxy=2,  # these parameter choices are just so it runs
         b=1.5,
+        distribute_halo_hydrogen=True,
         velocity_factor=5,
         compress_catalogue=False,
     )

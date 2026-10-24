@@ -264,7 +264,9 @@ def build_galaxy_membership_arrays(
         level_galaxy_indices.append(galaxy_indices[valid_mask])
         current_rows[valid_mask] = halo_parent[current_rows[valid_mask]]  # walk one level up; roots become -1
 
-    offsets = np.concatenate([[0], np.cumsum(lengths)]).astype(DTYPES["csr_offsets"])
+    offsets = np.empty(len(lengths) + 1, dtype=DTYPES["csr_offsets"])
+    offsets[0] = 0
+    np.cumsum(lengths, out=offsets[1:], dtype=DTYPES["csr_offsets"])
 
     if level_halo_rows:
         flat_halo_rows = np.concatenate(level_halo_rows)

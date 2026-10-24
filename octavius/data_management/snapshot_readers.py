@@ -251,6 +251,15 @@ class SimbaReader(GadgetReader):
         return mass_H2
 
 
+class SimbaCReader(SimbaReader):
+    """
+    Simba-C reader, which is identical to the SimbaReader bar the metallicity column convention
+    due to its enhanced chemistry library.
+    """
+
+    column_indices = {**SimbaReader.column_indices, "helium_fraction": 2}
+
+
 class TNGReader(GadgetReader):
     """
     TNG snapshot reader; assumes default GADGET units.
@@ -410,6 +419,7 @@ class TNGReader(GadgetReader):
 
 READER_MAP: dict[str, type[SnapshotReader]] = {
     "SIMBA": SimbaReader,
+    "SIMBA-C": SimbaCReader,
     "TNG": TNGReader,
     "SWIFT-KIARA": KiaraReader,
     "SWIFT-EAGLE": EagleReader,

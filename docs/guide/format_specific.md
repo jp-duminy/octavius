@@ -54,3 +54,4 @@ Subhaloes can be identified with the `depth` column in `halo_data`: the column i
 ### SIMBA
 
 - Default GADGET units are assumed.
+- If using a SIMBA-C snapshot, please specify it as such with `SIMBA-C`.

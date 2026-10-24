@@ -32,6 +32,7 @@ The full list of supported formats is as follows:
 | SWIFT-EAGLE  | HBT-HERONS, AHF, SNAPSHOT |
 | SWIFT-COLIBRE  | HBT-HERONS, AHF, SNAPSHOT  |
 | SIMBA  | AHF, SNAPSHOT  |
+| SIMBA-C  | AHF, SNAPSHOT  |
 | TNG  | SUBFIND  |
 
 ## How does it work?

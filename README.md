@@ -41,7 +41,7 @@ Octavius is packaged on pip, with a planned conda-forge deployment in the near-f
 
 ## Features
 
-- Supports SWIFT (EAGLE, KIARA, COLIBRE), TNG, and SIMBA snapshots
+- Supports SWIFT (EAGLE, KIARA, COLIBRE), TNG, and SIMBA/SIMBA-C snapshots
 - Supports AHF, HBT-HERONS and SUBFIND halo catalogues
 - Produces snapshot-agnostic catalogues
 - Built-in galaxy finding with a 6D friends-of-friends algorithm

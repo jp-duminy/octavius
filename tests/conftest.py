@@ -27,7 +27,7 @@ CONFIG_PATH = Path(__file__).parent.parent / "octavius" / "config.yaml"
 PHOTOMETRY_TABLE_PATH = Path(__file__).parent / "data" / "test_photometry_table.hdf5"
 INTERNALS_PATH = Path(__file__).parent.parent / "octavius" / "internals.yaml"
 
-FORMATS = ["SIMBA", "SWIFT-KIARA", "SWIFT-EAGLE", "SWIFT-COLIBRE", "TNG"]
+FORMATS = ["SIMBA", "SIMBA-C", "SWIFT-KIARA", "SWIFT-EAGLE", "SWIFT-COLIBRE", "TNG"]
 
 
 @pytest.fixture(scope="session", params=FORMATS)
@@ -45,7 +45,7 @@ def mock_catalogue(
     tmp_config = tmp_dir / "octavius_config.yaml"
     assert tmp_config.exists()
 
-    if sim_type == "SIMBA":
+    if sim_type in ("SIMBA", "SIMBA-C"):
         generate_simba_snapshot(path=tmp_snap)
     elif "SWIFT" in sim_type:
         model = sim_type.split(sep="-")[1]  # slightly hacky

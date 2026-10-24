@@ -28,7 +28,11 @@ from octavius.aggregate_properties.aggregate_helpers import (
     first_idx_per_group,
 )
 
+from octavius.aggregate_properties.properties_core import _combine_centre_of_mass
+
+
 from octavius.data_management import (
+    GroupStore,
     build_group_csr,
 )
 
@@ -360,3 +364,59 @@ def test_vmax_rmax() -> None:
             total_mass = np.sum(masses[GROUP_IDX == g])
             v_at_outer = np.sqrt(oc.G_VCIRC * total_mass / np.max(radii[GROUP_IDX == g]))
             assert result_vmax[g] >= v_at_outer * 0.99, "compute_vmax_and_rmax failed: vmax below circular velocity."
+
+
+def test_combined_com() -> None:
+    """
+    Tests whether the combined centre of mass is correct, in response to the v0.9.3 issue.
+    """
+    store = GroupStore(group_ids=np.arange(3), group_key="GalID", kind="galaxy")
+    constituent_ptypes = ["gas", "star", "bh"]
+
+    # one galaxy with all ptypes; two galaxies, each missing ptypes
+    store["mass_gas"] = np.array([1.0, 1.0, 0.0])  # one galaxy with no gas mass
+    store["mass_star"] = np.array([3.0, 3.0, 1.0])
+    store["mass_bh"] = np.array([1.0, 0.0, 3.0])  # one with no bh mass
+    combined_mass = sum(store[f"mass_{pt}"] for pt in constituent_ptypes)
+
+    # positions assuming a box of 100 length in arbitrary units, x = y = z for simplicity
+    boxsize = 100.0
+    # put the ptype pos vals across boundaries
+    store["_pos_gas"] = boxsize * np.repeat(np.array([[0.45], [0.02], [0.0]]), repeats=3, axis=1)
+    store["_pos_star"] = boxsize * np.repeat(np.array([[0.55], [0.98], [0.49]]), repeats=3, axis=1)
+    store["_pos_bh"] = boxsize * np.repeat(np.array([[0.0], [0.0], [0.51]]), repeats=3, axis=1)
+
+    # this is very rote so I'm going to make velocity ascending
+    store["_vel_gas"] = np.full(shape=(3, 3), fill_value=1.0)
+    store["_vel_star"] = np.full(shape=(3, 3), fill_value=2.0)
+    store["_vel_bh"] = np.full(shape=(3, 3), fill_value=3.0)
+
+    # group 0: star wins (m = 3), and is at 0.55
+    # gas shift is -0.1 which stays as such, bh shift is -0.55 which wraps to 0.45
+    # weighted shift is then 0.07 and the com with offset is 0.62
+    # doing this for the others gives:
+
+    expected_pos = boxsize * np.repeat(np.array([[0.62], [0.99], [0.505]]), repeats=3, axis=1)
+    expected_vel = np.repeat(np.array([[2.0], [1.75], [2.75]]), repeats=3, axis=1)
+    # repeat for others and you get [0.525, 0.99, 0.505] * boxsize
+    # same for vel gives [1.75, 1.75, 2.75]
+
+    results = _combine_centre_of_mass(
+        group_store=store,
+        combined_mass=combined_mass,
+        collective_name="baryon",
+        constituent_ptypes=constituent_ptypes,
+        boxsize=boxsize,
+    )
+
+    np.testing.assert_allclose(
+        results["com_pos_baryon"],
+        expected_pos,
+        err_msg="test_combined_com failed: positions do not match",
+    )
+
+    np.testing.assert_allclose(
+        results["com_vel_baryon"],
+        expected_vel,
+        err_msg="test_combined_com failed: velocities do not match",
+    )

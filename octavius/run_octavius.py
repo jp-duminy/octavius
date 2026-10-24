@@ -348,8 +348,10 @@ def analyse_snapshot(
 
     else:
         slabs = generate_slabs(rank=0, n_ranks=1, particle_counts=reader.particle_counts)
-        field_ids = halo_source.distribute_field_ids(slabs=slabs)
-        sub_ids = halo_source.distribute_sub_ids(slabs=slabs)
+        field_ids = halo_source.distribute_field_ids(slabs=slabs, comm=None, global_ids=all_halo_assignments.field_ids)
+        sub_ids = halo_source.distribute_sub_ids(
+            slabs=slabs, comm=None, global_subhalo_ids=all_halo_assignments.sub_ids
+        )
 
     # ranks determine the mapping from their slab to other ranks, and the mask for their own allocation of their slab
     masks: dict[str, np.ndarray] = {}

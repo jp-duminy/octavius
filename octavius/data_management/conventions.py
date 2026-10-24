@@ -26,7 +26,7 @@ logger = get_logger()
 # for config parsing
 CONFIG_FIELDS = frozenset({"thresholds", "physics", "fof6d", "properties", "photometry", "parallelism", "logging"})
 FILEPATHS = frozenset({"snapshot_path", "output_dir", "halo_catalogue_path", "photometry_table_path"})
-VALID_SIM_TYPES = frozenset({"SIMBA", "SWIFT-KIARA", "SWIFT-EAGLE", "SWIFT-COLIBRE", "TNG"})
+VALID_SIM_TYPES = frozenset({"SIMBA", "SIMBA-C", "SWIFT-KIARA", "SWIFT-EAGLE", "SWIFT-COLIBRE", "TNG"})
 VALID_HALO_CATS = frozenset({"SNAPSHOT", "AHF", "HBT-HERONS", "SUBFIND"})
 VALID_HALO_CENTRES = frozenset({"MIN_POT", "COM"})
 VALID_EXT_LAWS = frozenset({"COMPOSITE", "POWER_LAW", "CARDELLI", "CONROY", "CALZETTI", "MIX_CALZ_MW", "SMC", "LMC"})

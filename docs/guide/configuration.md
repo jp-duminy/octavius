@@ -35,7 +35,7 @@ The output catalogue will inherit the name of the snapshot prefixed with `octavi
 
 ## General Options
 
-`simulation_type`: the format of the snapshot (`SIMBA` / `SWIFT-KIARA` / `SWIFT-EAGLE` / `SWIFT-COLIBRE` / `TNG`).
+`simulation_type`: the format of the snapshot (`SIMBA` / `SIMBA-C` / `SWIFT-KIARA` / `SWIFT-EAGLE` / `SWIFT-COLIBRE` / `TNG`).
 
 `halo_id_source`: where the halo catalogue should be parsed from (`SNAPSHOT` / `AHF` / `HBT-HERONS` / `SUBFIND`).
 

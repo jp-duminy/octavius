@@ -555,15 +555,15 @@ header_fields:
     a_exp: 0
     description: "Age of the universe at this redshift."
   Hz:
-    unit: "km/s/Mpc"
+    unit: "1/s"
     a_exp: 0
-    description: "Hubble constant at this redshift."
+    description: "Hubble parameter at this redshift."
   rhocrit:
     unit: "Msun/kpc**3"
     a_exp: 0
     description: "Critical density of the Universe at this redshift."
   r200_factor:
-    unit: "kpc/Msun**1/3"
-    a_exp: 0
+    unit: "kpc/Msun**(1/3)"
+    a_exp: 1
     description: "r200m prefactor."
   

@@ -22,18 +22,18 @@ The package is currently pinned to relatively recent versions of its dependencie
 
 Octavius currently supports a variety of snapshot formats and corresponding halo catalogues. The code is designed to be trivially extensible: new simulation types and halo catalogues can be supported in as few as fifty lines of code. Currently, the [SWIFT ecosystem](https://swift.strw.leidenuniv.nl/) is well-supported, as are [SIMBA](https://arxiv.org/abs/1901.10203) snapshots. Provisional support currently exists for [IllustrisTNG](https://www.tng-project.org/).
 
-[HBT-HERONS](https://hbt-herons.strw.leidenuniv.nl/), [AHF](https://arxiv.org/abs/0904.3662), and [SUBFIND](https://www.tng-project.org/data/docs/specifications/#sec2b) catalogues are supported with full hierarchy mapping and inclusive properties.
+[HBT-HERONS](https://hbt-herons.strw.leidenuniv.nl/), [AHF](https://arxiv.org/abs/0904.3662), and [SUBFIND](https://www.tng-project.org/data/docs/specifications/#sec2b) catalogues are supported with full hierarchy mapping and inclusive properties. If a snapshot has no halo assignments at all, `FOF` runs a built-in friends-of-friends halo finder instead; `SNAP_OR_FOF` does so only when the snapshot has no halo IDs, and with `write_halo_ids` the FOF results are saved to the snapshot for future runs.
 
 The full list of supported formats is as follows:
 
 | Snapshot  | Halo Catalogue |
 | ------------- | ------------- |
-| SWIFT-KIARA  | HBT-HERONS, AHF, SNAPSHOT  |
-| SWIFT-EAGLE  | HBT-HERONS, AHF, SNAPSHOT |
-| SWIFT-COLIBRE  | HBT-HERONS, AHF, SNAPSHOT  |
-| SIMBA  | AHF, SNAPSHOT  |
-| SIMBA-C  | AHF, SNAPSHOT  |
-| TNG  | SUBFIND  |
+| SWIFT-KIARA  | HBT-HERONS, AHF, SNAPSHOT, FOF, SNAP_OR_FOF  |
+| SWIFT-EAGLE  | HBT-HERONS, AHF, SNAPSHOT, FOF, SNAP_OR_FOF |
+| SWIFT-COLIBRE  | HBT-HERONS, AHF, SNAPSHOT, FOF, SNAP_OR_FOF  |
+| SIMBA  | AHF, SNAPSHOT, FOF, SNAP_OR_FOF  |
+| SIMBA-C  | AHF, SNAPSHOT, FOF, SNAP_OR_FOF  |
+| TNG  | SUBFIND, FOF  |
 
 ## How does it work?
 

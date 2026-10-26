@@ -220,6 +220,12 @@ class SimbaReader(GadgetReader):
 
         return raw_halo_ids
 
+    def encode_halo_ids(self, halo_ids: np.ndarray) -> np.ndarray:
+        """
+        Maps 0-indexed HaloIDs to GIZMO's convention (1-indexed, with 0 as the sentinel).
+        """
+        return halo_ids.astype(np.int64) + 1
+
     def _derive_mass_HI(self, ptype: str = "gas") -> np.ndarray:
         """
         Converts the NeutralHydrogenAbundance (nHI/nH) to fHI (fraction of mass which is hydrogen)

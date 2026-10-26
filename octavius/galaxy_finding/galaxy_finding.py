@@ -131,7 +131,7 @@ def find_galaxies(
 
     store_fof6d_results(particles=particles, result=result)
 
-    logger.info(f"Located {result.n_galaxies:,} galaxies.")
+    logger.debug(f"Located {result.n_galaxies:,} galaxies on this rank.")  # global total is logged by the caller
 
     return result
 

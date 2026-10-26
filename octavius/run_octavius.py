@@ -180,6 +180,11 @@ def execute_pipeline(
         with timer("Find Galaxies", timings=timings):
             fof6d_result = find_galaxies(particles=particles, simulation=sim, config=config, constants=constants)
 
+        # each rank only finds galaxies in its own haloes, so sum over ranks for the total
+        comm = get_mpi_communicator()
+        n_galaxies = comm.allreduce(fof6d_result.n_galaxies) if comm is not None else fof6d_result.n_galaxies
+        get_logger().info(f"Located {n_galaxies:,} galaxies.")
+
     else:  # other functions have guards built for no galaxies so we set IDs equal to the sentinel value
         for ptype in particles:
             particles[ptype]["GalID"] = np.full(particles[ptype].n_particles, -1, dtype=np.int64)

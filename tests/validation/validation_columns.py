@@ -28,6 +28,8 @@ NEVER_NAN = {
         "properties/core/BoverT_baryon",
         "properties/core/kappa_rot_baryon",
         "properties/environment/mass_total_30kpc",
+        "properties/environment/mass_HI_diffuse",
+        "properties/environment/mass_H2_diffuse",
     ],
 }
 

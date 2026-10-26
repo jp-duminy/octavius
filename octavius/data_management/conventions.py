@@ -26,7 +26,7 @@ logger = get_logger()
 # for config parsing
 CONFIG_FIELDS = frozenset({"thresholds", "physics", "fof6d", "fof_haloes", "properties", "photometry", "parallelism", "logging"})
 FILEPATHS = frozenset({"snapshot_path", "output_dir", "halo_catalogue_path", "photometry_table_path"})
-VALID_SIM_TYPES = frozenset({"SIMBA", "SWIFT-KIARA", "SWIFT-EAGLE", "SWIFT-COLIBRE", "TNG"})
+VALID_SIM_TYPES = frozenset({"SIMBA", "SIMBA-C", "SWIFT-KIARA", "SWIFT-EAGLE", "SWIFT-COLIBRE", "TNG"})
 VALID_HALO_CATS = frozenset({"SNAPSHOT", "AHF", "HBT-HERONS", "SUBFIND", "FOF", "SNAP_OR_FOF"})
 FOF_HALO_SOURCES = frozenset({"FOF", "SNAP_OR_FOF"})  # sources which may run the built-in FOF halo finder
 VALID_HALO_CENTRES = frozenset({"MIN_POT", "COM"})
@@ -127,6 +127,7 @@ class OctaviusConfig:
     aperture_size: list[int] = field(default_factory=lambda: [30])
     virial_factors: list[int] = field(default_factory=lambda: [200, 500, 2500])
     halo_centre: str = "MIN_POT"
+    distribute_halo_hydrogen: bool = False
 
     b: float = 0.02
     velocity_factor: float = 1.0
@@ -161,6 +162,12 @@ class OctaviusConfig:
         """
         Post-initialisation validation of both sensible and valid config parameters to prevent errors at runtime.
         """
+        # auto expand Paths and coerce strings to Paths
+        for field_name in FILEPATHS:
+            value = getattr(self, field_name)
+            if value is not None:
+                object.__setattr__(self, field_name, Path(value).expanduser())
+
         # uppercase all strings which are expected to be uppercase
         for f in fields(self):
             value = getattr(self, f.name)
@@ -226,14 +233,14 @@ class OctaviusConfig:
             object.__setattr__(self, "bands", resolve_band_names(self.bands, names, lambda_effs))
 
     @classmethod
-    def from_yaml(cls, config_path: Path, **overrides: Any) -> OctaviusConfig:
+    def from_yaml(cls, config_path: Path | str, **overrides: Any) -> OctaviusConfig:
         """
         Parses an octavius_config.yaml parameter file into the dataclass used internally.
         Names of entries themselves and the file layout must not be changed.
 
         Parameters
         ----------
-        config_path: pathlib.Path
+        config_path: pathlib.Path or str
             Path object pointing to the config file.
         **overrides: Any
             Any overrides to config fields specified in the YAML.
@@ -243,15 +250,12 @@ class OctaviusConfig:
         config: OctaviusConfig
             The config dataclass.
         """
+        config_path = Path(config_path)  # coerce to Path object
+
         with open(config_path, "r") as f:
             raw = safe_load(f)
 
         flat = _flatten_config(raw)
-
-        for key in FILEPATHS:
-            if key in flat and flat[key] is not None:
-                flat[key] = Path(flat[key]).expanduser()
-
         flat.update(overrides)
 
         return cls(**flat)  # keyword unpacking saves us from a 35 argument instantiation
@@ -380,6 +384,7 @@ class DatasetUnits:
     a_exponent: int = 0
 
 
+# TODO: combine CODE_UNITS and DTYPES into one central abstraction
 CODE_UNITS = {
     "pos": DatasetUnits(unit=u.kpc, a_exponent=1),  # kpc * a
     "vel": DatasetUnits(unit=(u.km / u.s)),  # peculiar
@@ -407,6 +412,7 @@ CODE_UNITS = {
     "smoothing_length": DatasetUnits(unit=u.kpc, a_exponent=1),  # ckpc
 }
 
+# TODO: allow particle float datasets to be dropped to 32-bit in config, hardcode ID datatypes
 DTYPES = {
     "particle_id": np.int64,
     "ptype": np.int8,  # this allows up to 256 ptypes
@@ -425,6 +431,7 @@ DTYPES = {
     "age": np.float64,
     "bhmass": np.float64,
     "bhmdot": np.float64,
+    "smoothing_length": np.float64,
     # NOTE: external halo readers (AHF) sometimes store absurdly large integers for HIDs
     "HaloID": np.int64,
     "GalID": np.int64,
@@ -439,6 +446,7 @@ DTYPES = {
 }
 
 
+# FIXME: currently pinned to default GIZMO only
 def gadget_unit_conversion_factor(dataset: str, h: float, a: float) -> float:
     """
     Factors for converting standard GADGET units to internal code units.

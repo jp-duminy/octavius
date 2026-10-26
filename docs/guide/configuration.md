@@ -35,7 +35,7 @@ The output catalogue will inherit the name of the snapshot prefixed with `octavi
 
 ## General Options
 
-`simulation_type`: the format of the snapshot (`SIMBA` / `SWIFT-KIARA` / `SWIFT-EAGLE` / `SWIFT-COLIBRE` / `TNG`).
+`simulation_type`: the format of the snapshot (`SIMBA` / `SIMBA-C` / `SWIFT-KIARA` / `SWIFT-EAGLE` / `SWIFT-COLIBRE` / `TNG`).
 
 `halo_id_source`: where the halo catalogue should be parsed from (`SNAPSHOT` / `AHF` / `HBT-HERONS` / `SUBFIND` / `FOF` / `SNAP_OR_FOF`). `FOF` identifies haloes with the built-in friends-of-friends finder, for snapshots without halo assignments. `SNAP_OR_FOF` uses the snapshot's halo IDs if every particle type has them, and runs `FOF` otherwise.
 
@@ -76,6 +76,8 @@ Please note disabling a particle entirely may have unintended consequences: for 
 ## Thresholds
 
 `min_stars_per_galaxy`: the minimum number of stars a cluster of baryonic particles must contain to be considered a galaxy (default: `16`).
+
+`min_gas_per_galaxy`: the minimum number of gas particles a cluster of baryonic particles must contain to be considered a galaxy, considered in tandem with `min_stars_per_galaxy` (default: `0`).
 
 `min_dm_per_halo`: the minimum number of dark matter particles a halo should contain. Haloes below this threshold are disregarded during analysis and will not appear in the catalogue (default: `24`).
 
@@ -118,6 +120,10 @@ Only used when `halo_id_source` is `FOF` (or `SNAP_OR_FOF` and the snapshot has 
 `aperture_size`: a list of the radius (or radii), in kiloparsecs, of the apertures wherein aperture masses are computed. You can specify multiple aperture sizes (default: `[30]`).
 
 `virial_factors`: a list of the overdensity threshold(s) for which halo virial quantities are computed (default: `[200, 500, 2500]`).
+
+`halo_centre`: whether to use the position and velocity vector of the particle at the minimum potential or the centre-of-mass as the reference point for the centre of each halo (default: `MIN_POT`).
+
+`distribute_halo_hydrogen`: as part of the local environment properties, assigns each galaxy a diffuse HI and H2 component determined by the closest mass-weighted distance of gas particles in the field halo which were not already assigned to galaxies (default: `False`).
 
 (photometry-parameters)=
 ## Photometry Parameters

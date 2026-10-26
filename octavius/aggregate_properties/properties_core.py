@@ -683,8 +683,8 @@ def _compute_mass_profile_quantities(
     """
     Computes mass profile quantities (virial and vmax/rmax), (which as of 19/06/26 are only required for haloes). Returns a dict of:
 
-    - radius_{f}c for f in {factors}
-    - mass_{f}c
+    - r{f}c for f in {factors}
+    - m{f}c
     - vmax
     - rmax
     """
@@ -701,8 +701,8 @@ def _compute_mass_profile_quantities(
     )
 
     for f, factor in enumerate(factors.astype(int)):  # cast array to ints for f-string name
-        results[f"radius_{factor}c"] = virial_radius[:, f]
-        results[f"mass_{factor}c"] = virial_mass[:, f]
+        results[f"r{factor}c"] = virial_radius[:, f]
+        results[f"m{factor}c"] = virial_mass[:, f]
 
     vmax, rmax = compute_vmax_and_rmax(
         radii=radii,
@@ -865,11 +865,16 @@ def _combine_centre_of_mass(
     results: dict[str, np.ndarray] = {}
     n_groups = group_store.n_groups
 
-    # anchor each group on the CoM of its first ptype with any mass, so the PBC shifts are taken from inside the group
-    anchor_com = np.full(shape=(n_groups, 3), fill_value=np.nan)
-    for pt in reversed(constituent_ptypes):  # reversed, so earlier ptypes overwrite later ones
-        has_mass = group_store[f"mass_{pt}"] > 0
-        anchor_com[has_mass] = group_store[f"_pos_{pt}"][has_mass]
+    # anchor for the overall group
+    # we must avoid anchoring to an empty ptype group so loop over ptypes and use most massive
+    anchor_com = np.zeros(shape=(n_groups, 3))
+    anchor_mass = np.full(shape=n_groups, fill_value=-1.0)
+
+    for ptype in constituent_ptypes:  # same as the global minimum potential logic
+        ptype_mass = group_store[f"mass_{ptype}"]
+        heavier = ptype_mass > anchor_mass
+        anchor_com[heavier] = group_store[f"_pos_{ptype}"][heavier]
+        anchor_mass[heavier] = ptype_mass[heavier]
 
     weighted_shift = np.zeros(shape=(n_groups, 3))
     weighted_vel = np.zeros(shape=(n_groups, 3))

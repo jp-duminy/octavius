@@ -104,12 +104,7 @@ def find_galaxies(
 
     # guard in case the concatenated position arrays are all empty
     if len(work_data.pos) == 0:
-        empty_result = FOF6DResult(
-            write_keys=np.empty(0, dtype=np.int64),
-            galaxy_ids=np.empty(0, dtype=np.int64),
-            ptype_codes=np.empty(0, dtype=np.int8),
-            n_galaxies=0,
-        )
+        empty_result = FOF6DResult.empty()
         store_fof6d_results(particles=particles, result=empty_result)
         logger.warning("No particles pass the FOF6D criteria; no galaxies found.")
         return empty_result
@@ -132,7 +127,9 @@ def find_galaxies(
         gas_ptype_code=PTYPE_CODES["gas"],
     )
 
-    result = extract_galaxies_from_parents(work_data=work_data, parents=parents, minstars=params.minstars, mingas=params.mingas)
+    result = extract_galaxies_from_parents(
+        work_data=work_data, parents=parents, minstars=params.minstars, mingas=params.mingas
+    )
 
     store_fof6d_results(particles=particles, result=result)
 
@@ -325,7 +322,8 @@ def extract_galaxies_from_parents(
         gas_mask = work_data.ptype_codes[s:e] == PTYPE_CODES["gas"]
         gas_counts = np.bincount(halo_parents[gas_mask], minlength=len(component_sizes))
 
-        valid_parents = np.where((component_sizes >= minstars) & (star_counts >= minstars) & (gas_counts >= mingas))[0]
+        mask = (star_counts >= minstars) & (gas_counts >= mingas)
+        valid_parents = mask.nonzero()[0]
 
         if len(valid_parents) == 0:
             continue

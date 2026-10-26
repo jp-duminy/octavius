@@ -20,7 +20,7 @@ config_path = Path(__file__).parent.parent.parent / "config.yaml"
 
 
 def repack_catalogue(
-    catalogue_path: Path,
+    catalogue_path: Path | str,
     compression_level: int = 4,  #  https://en.wikipedia.org/wiki/Gzip fastest is 4
 ) -> None:
     """
@@ -29,11 +29,12 @@ def repack_catalogue(
 
     Parameters
     ----------
-    catalogue_path : pathlib.Path
+    catalogue_path : pathlib.Path or str
         Path to the catalogue you would like to compress.
     compression_level : int
         Desired gzip compression level (1-9)
     """
+    catalogue_path = Path(catalogue_path)
     logger.info(f"Compressing catalogue to gzip compression level {compression_level}.")
     h5repack_binary = shutil.which("h5repack")
     if h5repack_binary is None:
@@ -56,14 +57,14 @@ def repack_catalogue(
 
 
 def generate_test_catalogue(
-    output_dir: Path,
+    output_dir: Path | str,
 ) -> Path:
     """
     Generates a tiny synthetic Octavius catalogue for testing purposes. This catalogue is produced from a procedurally-generated snapshot filled with junk data; this function can therefore be used to assess the catalogue HDF5 file layout and whether the pipeline runs. It produces its own synthetic junk config file too.
 
     Parameters
     ----------
-    output_dir: pathlib.Path
+    output_dir: pathlib.Path or str
         Where you would like to output the test catalogue.
 
     Returns
@@ -72,6 +73,8 @@ def generate_test_catalogue(
         A path object pointing to the test catalogue.
     """
     from ..run_octavius import analyse_snapshot  # avoid circular import
+
+    output_dir = Path(output_dir)  # coerce to Path object
 
     snapshot_path = output_dir / "test_snap.hdf5"
 

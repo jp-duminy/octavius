@@ -171,7 +171,7 @@ def assign_galaxy_halo_indices(
     for ptype in available_baryonic_ptypes:
         offsets, idx_sorted = galaxies.get_particle_csr(ptype=ptype)
         all_subhids.append(particles[ptype]["SubhaloID"][idx_sorted])
-        group_idx = np.searchsorted(offsets, np.arange(len(idx_sorted)), side="right") - 1
+        group_idx = np.repeat(np.arange(galaxies.n_groups, dtype=np.int64), np.diff(offsets))
         all_galaxy_idx.append(group_idx)
 
     subhids, galaxy_idx = np.concatenate(all_subhids), np.concatenate(all_galaxy_idx)
@@ -206,9 +206,7 @@ def _trim_galaxy_interlopers(
     csr_cache: dict[str, tuple[np.ndarray, np.ndarray]] = {}  # so the reassignment can be vectorised
     for ptype in available_baryonic_ptypes:
         offsets, idx_sorted = galaxies.get_particle_csr(ptype=ptype)
-        galaxy_idx = (
-            np.searchsorted(offsets, np.arange(len(idx_sorted)), side="right") - 1
-        )  # (RHS-1) gives the position in offsets which is the galaxy ID
+        galaxy_idx = np.repeat(np.arange(galaxies.n_groups, dtype=np.int64), np.diff(offsets))
         sub_ids = particles[ptype]["SubhaloID"][idx_sorted]
         csr_cache[ptype] = (idx_sorted, galaxy_idx)
 
@@ -218,45 +216,31 @@ def _trim_galaxy_interlopers(
 
         particles[ptype]["GalID"][idx_sorted[interloping]] = -1
 
-    if minstars > 0:
-        # now we need to trim galaxies which fell below minstars
-        star_offsets, star_idx = galaxies.get_particle_csr(ptype="star")
-        original_star_counts = np.diff(star_offsets)  # for diagnostic
-        star_gal_ids = particles["star"]["GalID"][star_idx]
+    # now we need to trim galaxies which fell below the thresholds
+    trim_mask = np.zeros(galaxies.n_groups, dtype=bool)
+    thresholds: dict[str, int] = {"star": minstars, "gas": mingas}  # trim for minstars and mingas
+    original_counts: dict[str, int] = {}
+    surviving_counts: dict[str, np.ndarray] = {}
 
-        # get the star count in each galaxy
-        surviving = star_gal_ids >= 0
-        star_galaxy_idx = np.searchsorted(star_offsets, np.arange(len(star_idx)), side="right") - 1  # same logic as above
-        surviving_star_counts = np.bincount(star_galaxy_idx[surviving], minlength=galaxies.n_groups)
-        trim_mask = surviving_star_counts < minstars
-        galaxies_to_trim = trim_mask.nonzero()[0]
+    for ptype, threshold in thresholds.items():
+        if ptype not in csr_cache:  # this shouldn't be hit in practice because this doesn't run if FOF6D doesn't
+            continue
+        idx_sorted, galaxy_idx = csr_cache[ptype]
+        surviving = particles[ptype]["GalID"][idx_sorted] >= 0
+        surviving_counts[ptype] = np.bincount(galaxy_idx[surviving], minlength=galaxies.n_groups)
+        original_counts[ptype] = len(idx_sorted)
+        trim_mask |= surviving_counts[ptype] < threshold
 
-        for ptype, (idx_sorted, galaxy_idx) in csr_cache.items():
-            particles[ptype]["GalID"][idx_sorted[trim_mask[galaxy_idx]]] = -1
+    for ptype, (idx_sorted, galaxy_idx) in csr_cache.items():  # overwrite their GalIDs with -1
+        particles[ptype]["GalID"][idx_sorted[trim_mask[galaxy_idx]]] = -1
 
-        n_stars_lost = original_star_counts.sum() - surviving_star_counts[~trim_mask].sum()
-        logger.debug(f"{n_stars_lost} star particles trimmed when deferring to subhalo finder assignments.")
-        logger.debug(f"{len(galaxies_to_trim)} galaxies trimmed.")
+    for ptype, original_count in original_counts.items():
+        n_surviving = np.sum(surviving_counts[ptype][~trim_mask])
+        logger.debug(
+            f"{original_count - n_surviving} {ptype} particles trimmed when deferring to subhalo finder assignments."
+        )
 
-    if mingas > 0 and "gas" in available_baryonic_ptypes:
-        # now we need to trim galaxies which fell below mingas
-        gas_offsets, gas_idx = galaxies.get_particle_csr(ptype="gas")
-        original_gas_counts = np.diff(gas_offsets)  # for diagnostic
-        gas_gal_ids = particles["gas"]["GalID"][gas_idx]
-
-        # get the gas count in each galaxy
-        surviving = gas_gal_ids >= 0
-        gas_galaxy_idx = np.searchsorted(gas_offsets, np.arange(len(gas_idx)), side="right") - 1  # same logic as above
-        surviving_gas_counts = np.bincount(gas_galaxy_idx[surviving], minlength=galaxies.n_groups)
-        trim_mask = surviving_gas_counts < mingas
-        galaxies_to_trim = trim_mask.nonzero()[0]
-
-        for ptype, (idx_sorted, galaxy_idx) in csr_cache.items():
-            particles[ptype]["GalID"][idx_sorted[trim_mask[galaxy_idx]]] = -1
-
-        n_gas_lost = original_gas_counts.sum() - surviving_gas_counts[~trim_mask].sum()
-        logger.debug(f"{n_gas_lost} gas particles trimmed when deferring to subhalo finder assignments.")
-        logger.debug(f"{len(galaxies_to_trim)} galaxies trimmed.")
+    logger.debug(f"{np.count_nonzero(trim_mask)} galaxies trimmed.")
 
 
 @njit(cache=True)

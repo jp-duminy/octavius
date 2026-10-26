@@ -19,7 +19,7 @@ from ..version import CATALOGUE_VERSION
 
 
 def load_catalogue(
-    catalogue_path: Path,
+    catalogue_path: Path | str,
 ) -> OctaviusCatalogue:
     """
     Load an Octavius catalogue, returning an OctaviusCatalogue object which contains an
@@ -27,7 +27,7 @@ def load_catalogue(
 
     Parameters
     ----------
-    catalogue_path: pathlib.Path
+    catalogue_path: pathlib.Path or str
         pathlib.Path object pointing to an Octavius catalogue.
 
     Returns
@@ -35,6 +35,8 @@ def load_catalogue(
     catalogue: OctaviusCatalogue
         The loaded catalogue interface.
     """
+    catalogue_path = Path(catalogue_path)  # coerce to Path object
+
     with h5py.File(catalogue_path, "r") as f:
         file_version = f["metadata"].attrs.get("catalogue_format_version", 0)
         if file_version > CATALOGUE_VERSION:

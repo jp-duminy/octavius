@@ -418,9 +418,7 @@ def analyse_snapshot(
 
     elif comm is None:
         slabs = generate_slabs(rank=0, n_ranks=1, particle_counts=reader.particle_counts)
-        field_ids = halo_source.distribute_field_ids(
-            slabs=slabs, comm=None, global_ids=all_halo_assignments.field_ids
-        )
+        field_ids = halo_source.distribute_field_ids(slabs=slabs, comm=None, global_ids=all_halo_assignments.field_ids)
         sub_ids = halo_source.distribute_sub_ids(
             slabs=slabs, comm=None, global_subhalo_ids=all_halo_assignments.sub_ids
         )
@@ -517,13 +515,13 @@ def analyse_snapshot(
     return catalogue_path
 
 
-def generate_config(output_dir: Path = Path(".")) -> None:
+def generate_config(output_dir: Path | str = Path(".")) -> None:
     """
     Generates a default config.yaml file in the requested output directory.
 
     Parameters
     ----------
-    output_dir: pathlib.Path
+    output_dir: pathlib.Path or str
         Path object pointing to the output directory where the config.yaml file should be generated.
         Default: the current working directory.
 
@@ -531,6 +529,7 @@ def generate_config(output_dir: Path = Path(".")) -> None:
     -----
     The file will be named octavius_config.yaml by default.
     """
+    output_dir = Path(output_dir)
     default = CONFIG_PATH
     target = output_dir / "octavius_config.yaml"
 

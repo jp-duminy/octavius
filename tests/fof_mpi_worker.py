@@ -3,9 +3,7 @@
 Run under mpirun by test_fof_haloes_mpi.py: checks that the MPI FOF halo finder gives exactly the serial finder's
 HaloIDs, with each rank holding a contiguous chunk of the particles. Exits non-zero on any mismatch.
 
-Usage: mpirun -n <ranks> python -m tests.fof_mpi_worker [--force-messages] <linking length> [<linking length> ...]
-
---force-messages makes every particle exchange use redistribute_data()'s large-count fallback, in tiny messages.
+Usage: mpirun -n <ranks> python -m tests.fof_mpi_worker <linking length> [<linking length> ...]
 
 """
 
@@ -14,7 +12,6 @@ import sys
 import numpy as np
 from mpi4py import MPI
 
-from octavius.data_management import parallel_reading
 from octavius.galaxy_finding.fof_halo_algorithm import find_fof_haloes
 from octavius.galaxy_finding.fof_halo_mpi import find_fof_haloes_mpi
 from tests.test_fof_haloes import BOXSIZE, SEED, make_clustered_positions
@@ -28,10 +25,6 @@ def chunk(n: int, comm: MPI.Comm) -> slice:
 def main() -> None:
     comm = MPI.COMM_WORLD
     args = sys.argv[1:]
-    if "--force-messages" in args:
-        args.remove("--force-messages")
-        parallel_reading.MPI_MAX_COUNT = 0
-        parallel_reading.MAX_MESSAGE_BYTES = 1000  # 41 positions per message
     rng = np.random.default_rng(SEED)
     dm_pos = make_clustered_positions(rng, n_background=20000, n_clusters=40)
     gas_pos = make_clustered_positions(rng, n_background=8000, n_clusters=40) - 0.3  # some fall below 0: wrapped

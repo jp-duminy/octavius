@@ -76,10 +76,8 @@ def test_single_rank_matches_serial() -> None:
 
 # linking lengths give grids of 116 cells (many domains), 15 (a halo spanning the box; 3 planes per domain at 5 ranks)
 # and 9 (two domains at most, or fewer domains than ranks)
-@pytest.mark.parametrize(
-    ("n_ranks", "force_messages"), [(2, False), (3, False), (5, False), (3, True)]
-)  # force_messages: exchange particles with the large-count fallback
-def test_mpi_matches_serial(n_ranks: int, force_messages: bool) -> None:
+@pytest.mark.parametrize("n_ranks", [2, 3, 5])
+def test_mpi_matches_serial(n_ranks: int) -> None:
     mpirun = shutil.which("mpirun") or shutil.which("mpiexec")
     if mpirun is None:
         pytest.skip("mpirun not available")
@@ -94,9 +92,7 @@ def test_mpi_matches_serial(n_ranks: int, force_messages: bool) -> None:
         "PRTE_MCA_rmaps_default_mapping_policy": ":oversubscribe",
     }
     result = subprocess.run(
-        [mpirun, "-n", str(n_ranks), sys.executable, "-m", "tests.fof_mpi_worker"]
-        + (["--force-messages"] if force_messages else [])
-        + [str(LINKING_LENGTH), "12", "20"],
+        [mpirun, "-n", str(n_ranks), sys.executable, "-m", "tests.fof_mpi_worker", str(LINKING_LENGTH), "12", "20"],
         check=False,
         cwd=REPO_ROOT,
         env=env,

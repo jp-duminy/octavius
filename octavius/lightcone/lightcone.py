@@ -100,12 +100,12 @@ def build_lightcone(
     group_type: str
         ``galaxies`` or ``haloes``. Default: ``galaxies``
     field_shape: str
-        ``square`` (|RA|, |Dec| <= half-width) or ``circle`` (radius about the line of sight). Default: ``square``
-    properties: list[str], optional
+        ``square`` (``|RA|``, ``|Dec|`` <= half-width) or ``circle`` (radius about the line of sight). Default: ``square``
+    properties: list[str] or None
         Catalogue datasets to copy into the lightcone (e.g. ``["mass_star", "sfr"]``), with their units.
     n_lightcones: int
         Number of independent lightcones. Default: 1
-    seed: int, optional
+    seed: int or None
         Seed for the random box transforms; the seed used is stored in the output either way.
     redshift_space: bool
         Also compute ``z_obs``, which includes the line-of-sight peculiar velocity. Default: ``False``
@@ -114,7 +114,7 @@ def build_lightcone(
         shell, but repeat across the field when it is wider than the box), ``replica`` (every box replica; fewer
         repeated structures, but discontinuities at replica faces) or ``none`` (one transform for the whole lightcone).
         Default: ``snapshot``
-    position_column, velocity_column: str, optional
+    position_column, velocity_column: str or None
         Catalogue datasets placing each object. Defaults: ``com_pos_baryon``/``com_vel_baryon`` for galaxies and
         ``minpot_pos``/``com_vel_total`` for haloes.
     overwrite: bool
@@ -456,7 +456,7 @@ class LightconeCatalogue:
         Construction parameters and cosmology (area, z range, seed, ...).
     catalogue_paths: list[pathlib.Path]
         Source catalogues, indexed by the ``snapshot_index`` column.
-    snapshot_redshifts: ndarray
+    snapshot_redshifts: np.ndarray
         Redshifts of the source catalogues.
     n_objects: int
         Number of objects in the lightcone.

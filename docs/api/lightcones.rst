@@ -5,4 +5,3 @@ Lightcones
 .. autofunction:: octavius.load_lightcone
 
 .. autoclass:: octavius.lightcone.LightconeCatalogue
-   :members:

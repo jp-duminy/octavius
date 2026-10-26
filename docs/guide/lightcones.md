@@ -27,7 +27,7 @@ catalogue_paths = sorted(Path("/path/to/catalogues").glob("octavius_*.hdf5"))
 
 The same is available from the command line (`octavius lightcone -h` lists all options):
 
-```terminal
+```bash
 octavius lightcone /path/to/catalogues/octavius_*.hdf5 --area 2 --z-min 0 --z-max 3 \
     -g galaxies -p mass_star sfr --redshift-space --seed 42 -o lightcone.hdf5
 ```

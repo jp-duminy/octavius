@@ -122,9 +122,7 @@ def find_galaxies(
         linking_length=params.linking_length,
         velocity_factor=params.velocity_factor,
         minstars=params.minstars,
-        mingas=params.mingas,
         star_ptype_code=PTYPE_CODES["star"],
-        gas_ptype_code=PTYPE_CODES["gas"],
     )
 
     result = extract_galaxies_from_parents(
@@ -152,7 +150,6 @@ def prepare_fof6d_data(
     - params: FOF6DParameters dataclass
     """
     star_halo_ids = particles["star"]["HaloID"]
-    has_gas = "gas" in particles
     max_halo_id = max(
         (
             int(particles[pt]["HaloID"].max())
@@ -163,21 +160,18 @@ def prepare_fof6d_data(
     )
     n_haloes = max_halo_id + 1  # this is now the number of field haloes (since that's what we operate on)
     star_counts = np.bincount(
-        star_halo_ids[star_halo_ids >= 0], minlength=n_haloes)
-    if has_gas:
-        gas_halo_ids = particles["gas"]["HaloID"]
-        gas_counts = np.bincount(
-            gas_halo_ids[gas_halo_ids >= 0], minlength=n_haloes
-        )  # NOTE: need to mask sentinel value here
-    else:
-        gas_counts = np.zeros_like(star_counts)  # no gas: only passes if min_gas_per_galaxy is 0
+        star_halo_ids[star_halo_ids >= 0], minlength=n_haloes
+    )  # NOTE: need to mask sentinel value here
 
-    eligible_haloes = np.where((star_counts >= config.min_stars_per_galaxy) 
-        & (gas_counts >= config.min_gas_per_galaxy))[0]  # disregard haloes which would have no galaxies
+    eligible_haloes = np.where(star_counts >= config.min_stars_per_galaxy)[
+        0
+    ]  # disregard haloes which would have no galaxies
     eligible_set = np.zeros(star_counts.shape[0], dtype=bool)
     eligible_set[eligible_haloes] = True
 
-    gas_mask = apply_gas_mask(gas=particles["gas"], constants=constants, config=config) if has_gas else None
+    gas_mask = (
+        apply_gas_mask(gas=particles["gas"], constants=constants, config=config) if "gas" in particles else None
+    )  # only used for gas below, so runs without gas never need it
 
     pos_list, vel_list, ptype_list, index_list, hid_list = [], [], [], [], []
     for ptype in ["star", "gas", "bh"]:

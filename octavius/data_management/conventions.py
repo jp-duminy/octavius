@@ -68,12 +68,10 @@ class OctaviusConfig:
     Notes
     -----
 
-    - 'b' controls what fraction of the mean interparticle separation the linking length is. This is usually set to 0.02.
-    - 'halo_b' is the equivalent for the built-in FOF halo finder (halo_id_source: FOF), in units of the mean DM interparticle separation. This is usually set to 0.2.
+    - 'halo_b' is the linking length of the built-in FOF halo finder (halo_id_source: FOF), in units of the mean DM interparticle separation. This is usually set to 0.2.
     - 'halo_attach_ptypes' lists the baryonic ptypes which the FOF halo finder attaches to haloes (all of them if None); unlisted ptypes are given no halo.
     - 'write_halo_ids' writes the FOF HaloIDs back into the snapshot (in its own halo ID dataset), so later runs can use halo_id_source: SNAPSHOT or SNAP_OR_FOF instead of repeating the halo finding.
     - 'min_dm_per_halo_to_store' is the smallest halo (in DM particles) written to the snapshot with write_halo_ids; it defaults to min_dm_per_halo and may only be lower, so later runs can lower min_dm_per_halo. The analysis itself always uses min_dm_per_halo.
-    - 'velocity_factor' is in units of the local velocity dispersion, and controls how many standard deviations from the local velocity dispersion a particle considers its neighbours to be linked in phase space.
     - FRAD is the radiative efficiency (in the accretion formula, usually 0.1).
     - MU is the mean molecular weight (in the virial scaling formulae, usually 0.6)
     - n_io_chunks does not represent chunking through the full pipeline, rather, chunking on reading datasets. This is to alleviate stress on filesystems from multiple ranks simultaneously requesting multi-GB reads, but in practice leaving this at 10 is fine.

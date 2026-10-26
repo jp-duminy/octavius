@@ -46,10 +46,10 @@ Features include:
 - Snapshot-agnostic catalogues
 - Built-in galaxy finding with a 6D friends-of-friends algorithm
 - Computes over fifty properties for haloes and galaxies (including subhaloes)
-- Photometry in all [FSPS](https://dfm.io/python-fsps/current/)-registered bands including dust attenuation 
+- Photometry in all [FSPS](https://dfm.io/python-fsps/current/)-compatible bands with dust attenuation (no radiative transfer)
 - User-friendly API for working with output catalogues
-- Comprehensive galaxy/halo membership mapping, including halo/subhalo hierarchies
-- Standalone analysis tools including generating individual galaxy spectra
+- Comprehensive membership mapping, including hierarchies
+- Standalone analysis tools (on-the-fly pipeline stages)
 - Comprehensive unit and regression tests
 
 To get started, please refer to the [installation](getting_started/installation.md) guide; for a brief overview of the package, please see the [five-minute guide](getting_started/five_minute_guide.md).

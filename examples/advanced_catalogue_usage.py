@@ -54,10 +54,9 @@ scale_factor = catalogue.sim_info("scale_factor")
 scale_factor = catalogue.scale_factor  # this one is also on the catalogue object for convenience
 
 # now we want to compute a new property, the SFR-weighted oxygen mass fraction, of the galaxies in halo 23 which are
-# > 9 Gyr old; particle data is read from the raw snapshot through an analyser (photometry is turned off so the config
-# doesn't need a photometry table)
-config = oc.OctaviusConfig.from_yaml(Path("/path/to/config.yaml"), stages={"photometry": False})
-analyser = oc.build_analyser(catalogue=catalogue, config=config, snapshot_path=snapshot_path)
+# > 9 Gyr old; particle data is read from the raw snapshot through an analyser, which uses the config stored in the
+# catalogue unless given one (snapshot_path is only needed if the snapshot has moved since the catalogue was made)
+analyser = oc.build_analyser(catalogue=catalogue, snapshot_path=snapshot_path)
 
 age_mask = child_metal_weighted_ages > 9  # galaxies with metal-weighted mean ages greater than 9 Gyr
 idx_of_interest = child_gal_idx[age_mask]  # their indices

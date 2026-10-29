@@ -35,6 +35,21 @@ SWIFT_DATASET_ATTRS: dict[str, dict[str, float]] = {
     "TotalDustMassFractions": {"a-scale exponent": 0, "h-scale exponent": 0, "cgs_factor": 1},
 }
 
+# element columns of ElementMassFractions (as in the SWIMBA snapshots)
+SWIFT_ELEMENT_NAMES = [
+    "Hydrogen",
+    "Helium",
+    "Carbon",
+    "Nitrogen",
+    "Oxygen",
+    "Neon",
+    "Magnesium",
+    "Silicon",
+    "Sulfur",
+    "Calcium",
+    "Iron",
+]
+
 # cosmology
 h = 0.68
 scale_factor = 0.25
@@ -187,6 +202,10 @@ def generate_swift_snapshot(path: Path, model: str = "KIARA") -> None:
         units.attrs["Unit time in cgs (U_t)"] = 3.08567758e19  # Mpc / km/s in s
         units.attrs["Unit current in cgs (U_I)"] = 1.0
         units.attrs["Unit temperature in cgs (U_T)"] = 1.0
+
+        # names of the ElementMassFractions columns, as in real SWIFT snapshots
+        named_columns = f.create_group("SubgridScheme/NamedColumns")
+        named_columns.create_dataset("ElementMassFractions", data=np.array(SWIFT_ELEMENT_NAMES, dtype="S"))
 
         # gas
         gas = f.create_group("PartType0")

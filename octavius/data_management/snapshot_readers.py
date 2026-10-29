@@ -185,6 +185,9 @@ class SimbaReader(GadgetReader):
         "metallicity": 0,
     }
 
+    element_dataset = "Metallicity"
+    element_columns = [None, "He", "C", "N", "O", "Ne", "Mg", "Si", "S", "Ca", "Fe"]  # column 0 is total metallicity
+
     def __init__(self, snapshot_path: Path, constants: OctaviusConstants, n_io_chunks: int) -> None:
 
         super().__init__(snapshot_path, constants, n_io_chunks)
@@ -265,6 +268,43 @@ class SimbaCReader(SimbaReader):
 
     column_indices = {**SimbaReader.column_indices, "helium_fraction": 2}
 
+    # Chem5 order (enum chem5_element in KIARA's feedback_properties.h); column 0 is total metallicity
+    element_columns = [
+        None,
+        "H",
+        "He",
+        "Li",
+        "Be",
+        "B",
+        "C",
+        "N",
+        "O",
+        "F",
+        "Ne",
+        "Na",
+        "Mg",
+        "Al",
+        "Si",
+        "P",
+        "S",
+        "Cl",
+        "Ar",
+        "K",
+        "Ca",
+        "Sc",
+        "Ti",
+        "V",
+        "Cr",
+        "Mn",
+        "Fe",
+        "Co",
+        "Ni",
+        "Cu",
+        "Zn",
+        "Ga",
+        "Ge",
+    ]
+
 
 class TNGReader(GadgetReader):
     """
@@ -289,6 +329,9 @@ class TNGReader(GadgetReader):
     column_indices = {
         "helium_fraction": 1,  # slice of 2D datasets
     }
+
+    element_dataset = "GFM_Metals"
+    element_columns = ["H", "He", "C", "N", "O", "Ne", "Mg", "Si", "Fe", None]  # last column is all other metals
 
     def __init__(self, snapshot_path: Path, constants: OctaviusConstants, n_io_chunks: int) -> None:
 

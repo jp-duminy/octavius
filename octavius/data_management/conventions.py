@@ -24,7 +24,9 @@ from ..log import get_logger
 logger = get_logger()
 
 # for config parsing
-CONFIG_FIELDS = frozenset({"thresholds", "physics", "fof6d", "fof_haloes", "properties", "photometry", "parallelism", "logging"})
+CONFIG_FIELDS = frozenset(
+    {"thresholds", "physics", "fof6d", "fof_haloes", "properties", "photometry", "parallelism", "logging"}
+)
 FILEPATHS = frozenset({"snapshot_path", "output_dir", "halo_catalogue_path", "photometry_table_path"})
 VALID_SIM_TYPES = frozenset({"SIMBA", "SIMBA-C", "SWIFT-KIARA", "SWIFT-EAGLE", "SWIFT-COLIBRE", "TNG"})
 VALID_HALO_CATS = frozenset({"SNAPSHOT", "AHF", "HBT-HERONS", "SUBFIND", "FOF", "SNAP_OR_FOF"})
@@ -409,6 +411,62 @@ CODE_UNITS = {
     "bhmdot": DatasetUnits(unit=(u.M_sun / u.yr)),  # solar masses/yr
     "smoothing_length": DatasetUnits(unit=u.kpc, a_exponent=1),  # ckpc
 }
+
+# element symbols keyed by their full names (as SWIFT names its element columns), up to germanium to cover Chem5
+ELEMENT_SYMBOLS = {
+    "Hydrogen": "H",
+    "Helium": "He",
+    "Lithium": "Li",
+    "Beryllium": "Be",
+    "Boron": "B",
+    "Carbon": "C",
+    "Nitrogen": "N",
+    "Oxygen": "O",
+    "Fluorine": "F",
+    "Neon": "Ne",
+    "Sodium": "Na",
+    "Magnesium": "Mg",
+    "Aluminium": "Al",
+    "Aluminum": "Al",
+    "Silicon": "Si",
+    "Phosphorus": "P",
+    "Sulfur": "S",
+    "Sulphur": "S",
+    "Chlorine": "Cl",
+    "Argon": "Ar",
+    "Potassium": "K",
+    "Calcium": "Ca",
+    "Scandium": "Sc",
+    "Titanium": "Ti",
+    "Vanadium": "V",
+    "Chromium": "Cr",
+    "Manganese": "Mn",
+    "Iron": "Fe",
+    "Cobalt": "Co",
+    "Nickel": "Ni",
+    "Copper": "Cu",
+    "Zinc": "Zn",
+    "Gallium": "Ga",
+    "Germanium": "Ge",
+}
+
+
+def element_fraction_name(symbol: str) -> str:
+    """
+    Returns the Octavius name of the mass fraction of an element (e.g. 'O' -> 'fraction_O').
+
+    AI-generated: claude-opus-5-5
+    """
+    return f"fraction_{symbol}"
+
+
+# element mass fractions are dimensionless
+CODE_UNITS.update(
+    {
+        element_fraction_name(symbol): DatasetUnits(unit=u.dimensionless_unscaled)
+        for symbol in set(ELEMENT_SYMBOLS.values())
+    }
+)
 
 # TODO: allow particle float datasets to be dropped to 32-bit in config, hardcode ID datatypes
 DTYPES = {

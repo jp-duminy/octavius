@@ -37,7 +37,9 @@ from .physics import (
 from .conventions import (
     DTYPES,
     CODE_UNITS,
+    ELEMENT_SYMBOLS,
     SimulationAttributes,
+    element_fraction_name,
     gadget_unit_conversion_factor,
 )
 
@@ -63,6 +65,8 @@ class SnapshotReader(ABC):
     id_map: dict[str, str] = NotImplemented  # for halo IDs and particle IDs
     particle_counts: dict[str, int] = NotImplemented
     derived_columns: dict[str, Callable] = {}
+    element_dataset: str | None = None  # 2D dataset of element mass fractions, one column per element
+    element_columns: list[str | None] = []  # element symbol of each column (None where a column is not an element)
 
     def __init__(self, snapshot_path: Path, constants: OctaviusConstants, n_io_chunks: int) -> None:
 
@@ -76,6 +80,77 @@ class SnapshotReader(ABC):
 
         self.inverse_ptype_map = {v: k for k, v in self.ptype_map.items()}
         self.read_header()  # should set SimulationAttributes & particle_counts on self
+        self._register_elements()
+
+    def _register_elements(self) -> None:
+        """
+        Makes the mass fraction of each element in the snapshot readable as its own quantity, fraction_<symbol>
+        (e.g. fraction_O), by pointing it at its column of the element mass fraction dataset. Elements beyond the
+        number of columns actually in the snapshot are dropped with a warning.
+
+        AI-generated: claude-opus-5-5
+        """
+        self.dataset_map = dict(self.dataset_map)  # copy so the maps shared by the reader class are not changed
+        self.column_indices = dict(self.column_indices)
+
+        if not self.element_columns:
+            return
+
+        n_columns = self._count_element_columns()
+        if len(self.element_columns) > n_columns:
+            missing = [symbol for symbol in self.element_columns[n_columns:] if symbol is not None]
+            logger.warning(
+                f"{self.element_dataset} has {n_columns} columns but {type(self).__name__} expects "
+                f"{len(self.element_columns)}; these elements cannot be read: {', '.join(missing)}."
+            )
+            self.element_columns = self.element_columns[:n_columns]
+
+        for column, symbol in enumerate(self.element_columns):
+            if symbol is None:
+                continue
+
+            name = element_fraction_name(symbol)
+            self.dataset_map[name] = self.element_dataset
+            self.column_indices[name] = column
+
+    def _count_element_columns(self) -> int:
+        """
+        Returns the number of columns of the element mass fraction dataset (0 if no particle type has it).
+
+        AI-generated: claude-opus-5-5
+        """
+        with h5py.File(self.snapshot_path, "r") as f:
+            for hdf5_group in self.ptype_map:
+                if hdf5_group in f and self.element_dataset in f[hdf5_group]:
+                    shape = f[hdf5_group][self.element_dataset].shape
+                    return shape[1] if len(shape) == 2 else 0
+
+        return 0
+
+    @property
+    def available_elements(self) -> list[str]:
+        """
+        The symbols of the elements whose mass fractions can be read from the snapshot.
+
+        AI-generated: claude-opus-5-5
+        """
+        return [symbol for symbol in self.element_columns if symbol is not None]
+
+    def missing_dataset_message(self, ptype: str, dataset: str) -> str:
+        """
+        Explains why a dataset cannot be read, listing the available elements if an element was requested.
+
+        AI-generated: claude-opus-5-5
+        """
+        if dataset.startswith("fraction_") and dataset not in self.dataset_map:
+            symbol = dataset.removeprefix("fraction_")
+            available = ", ".join(self.available_elements) or "none"
+            return (
+                f"'{dataset}': {symbol} is not among the elements of this {type(self).__name__} snapshot. "
+                f"Elements available: {available}."
+            )
+
+        return f"'{dataset}' is not available for {ptype} in the snapshot."
 
     def read_dataset(self, ptype: str, dataset: str) -> np.ndarray:
         """
@@ -83,7 +158,7 @@ class SnapshotReader(ABC):
         internal code units and appropriate dtype, masked to the rank's allocation.
         """
         if not self.has_dataset(ptype, dataset):
-            raise KeyError(f"{dataset} either not available or not found for {ptype}.")
+            raise KeyError(self.missing_dataset_message(ptype=ptype, dataset=dataset))
 
         logger.debug(f"Loading '{dataset}' for {ptype}.")
 
@@ -472,6 +547,8 @@ class SwiftReader(SnapshotReader):
         "helium_fraction": 1,  # slice of 2D datasets
     }
 
+    element_dataset = "ElementMassFractions"  # element_columns are read from the snapshot in read_header()
+
     def __init__(self, snapshot_path: Path, constants: OctaviusConstants, n_io_chunks: int) -> None:
 
         super().__init__(snapshot_path, constants, n_io_chunks)
@@ -511,6 +588,8 @@ class SwiftReader(SnapshotReader):
             redshift = cosmo["Redshift"].item()
             omega_matter = cosmo["Omega_m"].item()
             omega_lambda = cosmo["Omega_lambda"].item()
+
+            self.element_columns = _read_swift_element_columns(f)
 
         for ptype, count in self.particle_counts.items():
             logger.info(f"  {ptype}: {count:,} particles")
@@ -719,3 +798,32 @@ class GadgetReader(SnapshotReader):
         )
 
         return temperature
+
+
+def _read_swift_element_columns(f: h5py.File) -> list[str | None]:
+    """
+    Reads the element of each column of SWIFT's ElementMassFractions from the names SWIFT stores in
+    SubgridScheme/NamedColumns, converted to element symbols. Returns an empty list if the names are not stored.
+
+    AI-generated: claude-opus-5-5
+    """
+    named_columns = f.get("SubgridScheme/NamedColumns/ElementMassFractions")
+    if named_columns is None:
+        logger.warning("No element names in SubgridScheme/NamedColumns; individual elements cannot be read.")
+        return []
+
+    element_columns: list[str | None] = []
+    symbols = set(ELEMENT_SYMBOLS.values())
+
+    for raw_name in named_columns[:]:
+        name = raw_name.decode() if isinstance(raw_name, bytes) else str(raw_name)
+
+        if name in ELEMENT_SYMBOLS:  # full name, e.g. Oxygen
+            element_columns.append(ELEMENT_SYMBOLS[name])
+        elif name in symbols:  # already a symbol, e.g. O
+            element_columns.append(name)
+        else:
+            logger.warning(f"Unrecognised element column '{name}' in ElementMassFractions; it will not be readable.")
+            element_columns.append(None)
+
+    return element_columns

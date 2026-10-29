@@ -496,7 +496,7 @@ class OctaviusAnalyser:
             raise KeyError(f"No {ptype} membership for {group_type} in the catalogue.")
 
         if not self._reader.has_dataset(ptype=ptype, dataset=name):
-            raise KeyError(f"'{name}' is not available for {ptype} in the snapshot.")
+            raise KeyError(self._reader.missing_dataset_message(ptype=ptype, dataset=name))
 
         single_group = np.ndim(group_indices) == 0
         indices = np.atleast_1d(np.asarray(group_indices, dtype=np.int64))

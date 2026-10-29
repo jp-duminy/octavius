@@ -126,17 +126,7 @@ def test_get_particle_data(mock_catalogue: h5py.File) -> None:
     AI-generated: claude-opus-5-5
     """
     cat = load_catalogue(Path(mock_catalogue.filename))
-    metadata = mock_catalogue["metadata"]
-    config = OctaviusConfig.from_yaml(
-        config_path=CONFIG_PATH,
-        simulation_type=metadata.attrs["simulation_type"],
-        snapshot_path=Path(metadata.attrs["original_snapshot_path"]),
-        output_dir=Path(mock_catalogue.filename).parent,
-        cores_per_rank=1,
-        stages={"photometry": False},  # particle reads don't need the photometry table
-        halo_id_source=mock_catalogue["metadata/config_parameters"].attrs["halo_id_source"],
-    )
-    analyser = build_analyser(catalogue=cat, config=config)
+    analyser = build_analyser(catalogue=cat)  # uses the config stored in the catalogue
 
     # one galaxy: compare against reading the whole snapshot dataset and indexing it ourselves
     star_mass = analyser.get_particle_data(name="mass", ptype="star", group_indices=0)
@@ -155,3 +145,24 @@ def test_get_particle_data(mock_catalogue: h5py.File) -> None:
     np.testing.assert_allclose(values[offsets[1] : offsets[2]], star_mass)
 
     cat.close()
+
+
+def test_config_from_catalogue(mock_catalogue: h5py.File) -> None:
+    """
+    Tests whether the config stored in the catalogue is rebuilt as it was given to the pipeline (see conftest.py).
+
+    AI-generated: claude-opus-5-5
+    """
+    config = OctaviusConfig.from_catalogue(mock_catalogue.filename)
+    assert config.simulation_type == mock_catalogue["metadata"].attrs["simulation_type"]
+    assert config.min_stars_per_galaxy == 2
+    assert config.b == 1.5
+    assert config.subhalo_override is True
+    assert config.compress_catalogue is False
+    assert config.stages["photometry"] is True
+    assert isinstance(config.virial_factors, list)
+    assert isinstance(config.snapshot_path, Path)
+
+    # a photometry table which cannot be found turns off photometry
+    config = OctaviusConfig.from_catalogue(mock_catalogue.filename, photometry_table_path="/does/not/exist.hdf5")
+    assert config.stages["photometry"] is False

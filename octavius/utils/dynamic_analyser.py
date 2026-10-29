@@ -48,7 +48,7 @@ logger = get_logger()
 
 def build_analyser(
     catalogue: OctaviusCatalogue,
-    config: OctaviusConfig,
+    config: OctaviusConfig | None = None,
     snapshot_path: Path | None = None,
 ) -> OctaviusAnalyser:
     """
@@ -59,8 +59,8 @@ def build_analyser(
     ----------
     catalogue: OctaviusCatalogue
         OctaviusCatalogue object corresponding to the snapshot.
-    config: OctaviusConfig
-        OctaviusConfig object.
+    config: OctaviusConfig or None
+        OctaviusConfig object. If not given, the config stored in the catalogue is used.
     snapshot_path: pathlib.Path or None
         Path object pointing to the original, raw snapshot (overrides config field).
 
@@ -73,19 +73,40 @@ def build_analyser(
     -----
     The config can be modified from the one used to create the snapshot. Pipeline-specific parameters will be disregarded.
     """
+    config_from_catalogue = config is None
+    if config_from_catalogue:
+        overrides = {"snapshot_path": snapshot_path} if snapshot_path is not None else {}
+        config = OctaviusConfig.from_catalogue(catalogue_path=catalogue._cat, **overrides)
+
+        # the catalogue may have been made on a machine with more cores than this one
+        if config.cores_per_rank > numba.config.NUMBA_NUM_THREADS:
+            config = replace(config, cores_per_rank=numba.config.NUMBA_NUM_THREADS)
+
+    snapshot_path = Path(snapshot_path or config.snapshot_path)
+    if not snapshot_path.exists():
+        raise FileNotFoundError(
+            f"Snapshot not found at {snapshot_path}; please pass its location with build_analyser(snapshot_path=...)."
+        )
+
     # initialise data structures
     constants = OctaviusConstants(mu=config.MU, frad=config.FRAD)
-    snapshot_path = snapshot_path or config.snapshot_path
     reader = build_reader(snapshot_path=snapshot_path, constants=constants, config=config)
     internals = load_internals(internals_filepath=INTERNALS_FILEPATH, config=config)
 
-    return OctaviusAnalyser(
+    analyser = OctaviusAnalyser(
         reader=reader,
         catalogue=catalogue,
         config=config,
         constants=constants,
         internals=internals,
     )
+
+    if config_from_catalogue:  # logged here as the analyser sets up the logger
+        logger.info(
+            f"No config given, so using the config stored in {catalogue._cat.name} (snapshot: {snapshot_path})."
+        )
+
+    return analyser
 
 
 @dataclass(frozen=True, slots=True)

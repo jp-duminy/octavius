@@ -12,7 +12,7 @@ The standalone analyser will return datasets in the default catalogue format. Th
 
 ## The OctaviusAnalyser
 
-The `OctaviusAnalyser` is able to call pipeline stages by reconstructing the necessary data structures from the catalogue. It can be created with the `build_analyser()` method, and requires you to provide both `OctaviusConfig` and `OctaviusCatalogue` objects. You may also optionally override the snapshot path stored in the config.
+The `OctaviusAnalyser` is able to call pipeline stages by reconstructing the necessary data structures from the catalogue. It can be created with the `build_analyser()` method from an `OctaviusCatalogue` object, optionally with an `OctaviusConfig` object. You may also optionally override the snapshot path stored in the config.
 
 ```python
 from pathlib import Path
@@ -26,8 +26,26 @@ catalogue = oc.load_catalogue(catalogue_path)
 analyser = oc.build_analyser(catalogue=catalogue, config=config)
 ```
 
+If no config is given, the analyser uses the config stored in the catalogue (the one used to create it), and logs that it has done so. This is the simplest way to analyse a catalogue consistently with how it was made:
+
+```python
+catalogue = oc.load_catalogue(catalogue_path)
+analyser = oc.build_analyser(catalogue=catalogue)  # uses the catalogue's config
+
+# if the snapshot has moved since the catalogue was made (e.g. to another machine), give its new location
+analyser = oc.build_analyser(catalogue=catalogue, snapshot_path=Path("/new/path/to/snapshot.hdf5"))
+```
+
+When the stored config is used:
+
+- If the snapshot cannot be found at `snapshot_path`, an error is raised asking for its location.
+- If the photometry table cannot be found, the photometry stage is turned off with a warning.
+- `cores_per_rank` is reduced to the number of threads available, if the catalogue was made on a larger machine.
+
+The stored config can also be loaded directly with `OctaviusConfig.from_catalogue()`, which accepts overrides in the same way as `from_yaml()`.
+
 :::{warning}
-You should ensure the `OctaviusCatalogue` and the config snapshot (under `snapshot_path`) are consistent. `build_analyser()` accepts an optional `snapshot_path` argument for safety.
+If you provide a config, you should ensure the `OctaviusCatalogue` and the config snapshot (under `snapshot_path`) are consistent. `build_analyser()` accepts an optional `snapshot_path` argument for safety.
 :::
 
 :::{tip}

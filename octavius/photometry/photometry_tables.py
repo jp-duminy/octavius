@@ -24,7 +24,7 @@ import h5py
 
 # internal imports
 from ..version import __version__
-from ..log import get_logger
+from ..log import SAME_ON_ALL_RANKS, get_logger
 
 logger = get_logger()
 
@@ -78,7 +78,8 @@ def read_photometry_table(table_path: Path) -> PhotometryTable:
         table_version = tab.attrs["octavius_version"]
         if table_version != __version__:
             logger.warning(
-                f"Photometry table was generated with version {table_version}; you are running version {__version__}"
+                f"Photometry table was generated with version {table_version}; you are running version {__version__}",
+                extra=SAME_ON_ALL_RANKS,
             )
 
         # SSP datasets

@@ -39,6 +39,8 @@ from .conventions import (
 from .parallel_reading import (
     RedistributionMap as RedistributionMap,
     generate_rank_halo_assignments as generate_rank_halo_assignments,
+    assign_haloes_to_ranks as assign_haloes_to_ranks,
+    reduce_halo_member_counts as reduce_halo_member_counts,
     assign_local_subhaloes as assign_local_subhaloes,
     generate_slabs as generate_slabs,
     build_redistribution_map as build_redistribution_map,

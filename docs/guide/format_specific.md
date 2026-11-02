@@ -31,6 +31,18 @@ Subhaloes can be identified with the `depth` column in `halo_data`: the column i
 
 - The pipeline has currently only been tested on SWIFT-KIARA snapshots with associated HBT-HERONS catalogues.
 
+### FOF
+
+- Under MPI, halo finding is spread across every rank: the box is split into slabs along x with roughly equal numbers of DM particles, and each rank only holds its own slab (plus a thin layer of neighbouring particles), so the box size is limited by the total memory of all ranks rather than one. Particle exchanges too large for a single MPI call are automatically split into smaller messages, so any number of ranks works. Each rank uses `cores_per_rank` threads. The resulting HaloIDs do not depend on the number of ranks. Slabs must be at least two FOF cells (about one linking length) thick, so ranks beyond that limit sit idle during halo finding; this only matters for tiny boxes.
+
+- Without MPI (no `mpi4py`), halo finding runs in one process, which must hold every particle's position (plus roughly 65 bytes per DM particle of working memory).
+
+- HaloIDs are ordered by descending DM membership, so halo 0 is the largest. A warning is logged if the largest halo holds more than half of all DM particles, which usually means the linking length is too large or the positions and box size are in different units.
+
+- Under MPI, the log reports how evenly the DM particles are split between ranks, and warns if some ranks are idle or one rank holds more than twice its share (a dense region cannot be split into slabs thinner than two cells).
+
+- With `write_halo_ids`, ranks write their share of the halo IDs to the snapshot one after another; this is a one-off cost of writing 8 bytes per particle. For multi-file SWIFT snapshots the halo IDs are stored as ordinary datasets in the virtual-dataset file, not in the individual files.
+
 ### SUBFIND
 
 - The pipeline will assume the particles in the original snapshot have been re-ordered according to the SUBFIND catalogue assignments.

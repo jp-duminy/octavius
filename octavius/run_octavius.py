@@ -43,6 +43,8 @@ from .data_management import (
     release_stage_columns,
     validate_stage_requirements,
     generate_rank_halo_assignments,
+    assign_haloes_to_ranks,
+    reduce_halo_member_counts,
     generate_slabs,
     redistribute_data,
     assign_local_subhaloes,
@@ -224,6 +226,11 @@ def execute_pipeline(
         with timer("Find Galaxies", timings=timings):
             fof6d_result = find_galaxies(particles=particles, simulation=sim, config=config, constants=constants)
 
+        # each rank only finds galaxies in its own haloes, so sum over ranks for the total
+        comm = get_mpi_communicator()
+        n_galaxies = comm.allreduce(fof6d_result.n_galaxies) if comm is not None else fof6d_result.n_galaxies
+        get_logger().info(f"Located {n_galaxies:,} galaxies.")
+
     else:  # other functions have guards built for no galaxies so we set IDs equal to the sentinel value
         for ptype in particles:
             particles[ptype]["GalID"] = np.full(particles[ptype].n_particles, -1, dtype=np.int64)
@@ -349,14 +356,35 @@ def analyse_snapshot(
     reader = build_reader(snapshot_path=config.snapshot_path, constants=oc, config=config)
     halo_source = build_halo_source(config=config, reader=reader)
 
+    timings: dict[str, float] = {}
+
     # parallelism: rank 0 determines which haloes need to go to which rank
+    collective = comm is not None and halo_source.collective  # haloes found by all ranks at once (no global IDs)
+
+    if collective:
+        slabs = generate_slabs(rank=rank, n_ranks=size, particle_counts=reader.particle_counts)
+        with timer(f"Read halo IDs ({config.halo_id_source})", timings=timings):
+            field_ids, n_field_haloes = halo_source.read_local_halo_ids(
+                ptypes=reader.available_ptypes, slabs=slabs, comm=comm
+            )
+        sub_ids = None
+        ptype_counts = reduce_halo_member_counts(field_ids=field_ids, n_field_haloes=n_field_haloes, comm=comm)
+
     if rank == 0:  # no need for comm.Barrier() here as scatter does it inherently
-        all_halo_assignments = halo_source.read_halo_ids(ptypes=reader.available_ptypes)
-        subhalo_info = halo_source.read_subhalo_info()
-        halo_to_rank = generate_rank_halo_assignments(
-            halo_assignments=all_halo_assignments, config=config, n_ranks=size
-        )
-        original_halo_ids = all_halo_assignments.original_field_ids
+        if collective:
+            subhalo_info = None
+            original_halo_ids = None
+            halo_to_rank = assign_haloes_to_ranks(
+                ptype_counts=ptype_counts, n_field_haloes=n_field_haloes, config=config, n_ranks=size
+            )
+        else:
+            with timer(f"Read halo IDs ({config.halo_id_source})", timings=timings):
+                all_halo_assignments = halo_source.read_halo_ids(ptypes=reader.available_ptypes)
+            subhalo_info = halo_source.read_subhalo_info()
+            halo_to_rank = generate_rank_halo_assignments(
+                halo_assignments=all_halo_assignments, config=config, n_ranks=size
+            )
+            original_halo_ids = all_halo_assignments.original_field_ids
         halo_to_rank_length = len(halo_to_rank)
         assert halo_to_rank.dtype == np.int64, (
             "Bcast is receiving wrong dtype (bit corruption)."
@@ -381,6 +409,8 @@ def analyse_snapshot(
         )  # lowercase b broadcast for the subhalo dataclass (subset of haloes so smaller)
         original_halo_ids = comm.bcast(original_halo_ids, root=0) if comm else original_halo_ids
 
+    # (with a collective source, every rank already holds the HaloIDs of its own slabs)
+    if comm is not None and not collective:
         # ranks determine which slab of each dataset they will read
         slabs = generate_slabs(rank=rank, n_ranks=size, particle_counts=reader.particle_counts)
 
@@ -392,12 +422,18 @@ def analyse_snapshot(
             slabs=slabs, comm=comm, global_subhalo_ids=all_halo_assignments.sub_ids if rank == 0 else None
         )
 
-    else:
+    elif comm is None:
         slabs = generate_slabs(rank=0, n_ranks=1, particle_counts=reader.particle_counts)
         field_ids = halo_source.distribute_field_ids(slabs=slabs, comm=None, global_ids=all_halo_assignments.field_ids)
         sub_ids = halo_source.distribute_sub_ids(
             slabs=slabs, comm=None, global_subhalo_ids=all_halo_assignments.sub_ids
         )
+
+    # optionally store the halo IDs in the snapshot, so later runs need not find them again
+    provenance = halo_source.snapshot_attributes()
+    if config.write_halo_ids and provenance is not None:
+        with timer("Write halo IDs to snapshot", timings=timings):
+            reader.write_halo_ids(field_ids=field_ids, slabs=slabs, comm=comm, attributes=provenance)
 
     # ranks determine the mapping from their slab to other ranks, and the mask for their own allocation of their slab
     masks: dict[str, np.ndarray] = {}
@@ -428,7 +464,6 @@ def analyse_snapshot(
     sub_ids = None
 
     # analysis pipeline
-    timings: dict[str, float] = {}
     packed_data = execute_pipeline(
         config=config,
         internals=internals,
@@ -550,7 +585,7 @@ def main() -> None:
             raise ValueError("Please provide a snapshot path.")
         if config.output_dir is None:
             raise ValueError("Please provide an output directory path.")
-        if config.halo_id_source != "SNAPSHOT" and config.halo_catalogue_path is None:
+        if config.halo_id_source not in ("SNAPSHOT", "FOF", "SNAP_OR_FOF") and config.halo_catalogue_path is None:
             raise ValueError(
                 f"{config.halo_id_source} also requires a catalogue containing ID assignments to be specified in 'halo_catalogue_path'."
             )

@@ -33,6 +33,7 @@ import numpy as np
 
 # internal imports
 from .conventions import DTYPES
+from .parallel_reading import RedistributionMap, redistribute_data
 from ..data_management.csr import build_group_csr, propagate_membership_csr
 from ..log import get_logger
 
@@ -209,21 +210,70 @@ def write_catalogue(
             if hdf5_name in packed_data.groups and ptype in packed_data.groups[hdf5_name].particle_lists:
                 rank_membership_data[key] = packed_data.groups[hdf5_name].particle_lists[ptype]
 
-    # ranks take turns writing their indices array (globally-ordered) to the output catalogue
+    # writing group-by-group means one HDF5 call per group per ptype, so instead the indices are exchanged so that
+    # each rank owns one contiguous block of every indices dataset, which it then writes in a single call
+    rank_blocks: dict[tuple[str, str], tuple[int, np.ndarray]] = {}
+    for key in rank_write_positions:  # same insertion order on every rank
+        csr = rank_membership_data.get(key)
+        rank_blocks[key] = gather_contiguous_block(
+            displacements=rank_write_positions[key],
+            offsets=csr.offsets if csr is not None else np.zeros(1, dtype=DTYPES["csr_offsets"]),
+            indices=csr.indices if csr is not None else np.empty(0, dtype=DTYPES["csr_indices"]),
+            comm=comm,
+        )
+
+    # ranks take turns writing their block of each indices array (globally-ordered) to the output catalogue
     for writer_rank in range(n_ranks):
-        if rank == writer_rank and rank_membership_data:  # == writer_rank so ranks don't overwrite each others' data
+        if rank == writer_rank:  # == writer_rank so ranks don't write to the file at the same time
             with h5py.File(catalogue_path, "a") as f:  # also use "a" not "w"!
-                for (hdf5_name, ptype), csr in rank_membership_data.items():
-                    displacements = rank_write_positions[(hdf5_name, ptype)]
-                    dataset = f[hdf5_name][f"membership/{ptype}_indices"]
-                    for group_idx in range(len(displacements)):
-                        start, end = csr.offsets[group_idx], csr.offsets[group_idx + 1]
-                        if end > start:
-                            dataset[displacements[group_idx] : displacements[group_idx] + (end - start)] = csr.indices[
-                                start:end
-                            ]
+                for (hdf5_name, ptype), (block_start, block) in rank_blocks.items():
+                    if len(block) > 0:
+                        f[hdf5_name][f"membership/{ptype}_indices"][block_start : block_start + len(block)] = block
         if comm is not None:
             comm.Barrier()  # remember to Barrier() because each rank needs to finish its write first
+
+
+def gather_contiguous_block(
+    displacements: np.ndarray,
+    offsets: np.ndarray,
+    indices: np.ndarray,
+    comm: Comm | None,
+) -> tuple[int, np.ndarray]:
+    """
+    Sends each of a rank's membership indices to the rank owning its position in the output dataset, where the
+    dataset is split into n_ranks near-equal contiguous blocks. Returns:
+
+    - block_start: the dataset position of this rank's block
+    - block: this rank's block of the indices dataset, in file order
+    """
+    lengths = np.diff(offsets)
+    positions = np.repeat(displacements - offsets[:-1], lengths) + np.arange(len(indices), dtype=np.int64)
+
+    n_ranks = comm.Get_size() if comm is not None else 1
+    rank = comm.Get_rank() if comm is not None else 0
+    n_total = comm.allreduce(len(indices)) if comm is not None else len(indices)
+
+    bounds = (np.arange(n_ranks + 1, dtype=np.int64) * n_total) // n_ranks
+    owner_ranks = np.searchsorted(bounds, positions, side="right") - 1
+
+    send_order = np.argsort(owner_ranks, stable=True)
+    send_counts = np.bincount(owner_ranks, minlength=n_ranks).astype(np.int64)
+    rec_counts = np.empty_like(send_counts)
+    if comm is not None:
+        comm.Alltoall(sendbuf=send_counts, recvbuf=rec_counts)
+    else:
+        rec_counts[:] = send_counts
+    redistribution_map = RedistributionMap(send_order=send_order, send_counts=send_counts, rec_counts=rec_counts)
+
+    received_positions = redistribute_data(positions, redistribution_map, comm)
+    received_indices = redistribute_data(indices, redistribution_map, comm)
+
+    block_start = int(bounds[rank])
+    block = np.empty(bounds[rank + 1] - block_start, dtype=DTYPES["csr_indices"])
+    assert len(received_positions) == len(block), "membership indices do not tile the output dataset"
+    block[received_positions - block_start] = received_indices
+
+    return block_start, block
 
 
 def _resolve_pointer_column(chunks: list[np.ndarray], inverse_halo_order: np.ndarray, order: np.ndarray) -> np.ndarray:

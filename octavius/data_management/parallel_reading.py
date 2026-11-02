@@ -163,7 +163,6 @@ def generate_rank_halo_assignments(
 
     - halo_to_rank: an (n_haloes) array where halo_to_rank[i] = rank which halo i is assigned to.
     """
-    logger.info(f"Computing halo assignments for {n_ranks} ranks.")
     ptype_counts = {}
 
     for ptype, halo_ids in halo_assignments.field_ids.items():
@@ -172,6 +171,44 @@ def generate_rank_halo_assignments(
             valid, minlength=halo_assignments.n_field_haloes
         )  # same logic as sum_per_group in aggregate_helpers.py
 
+    return assign_haloes_to_ranks(
+        ptype_counts=ptype_counts, n_field_haloes=halo_assignments.n_field_haloes, config=config, n_ranks=n_ranks
+    )
+
+
+def reduce_halo_member_counts(
+    field_ids: dict[str, np.ndarray], n_field_haloes: int, comm: Comm
+) -> dict[str, np.ndarray] | None:
+    """
+    Collective. For halo sources which leave HaloIDs spread across ranks: sums every rank's per-ptype particle counts
+    per halo onto rank 0, for assign_haloes_to_ranks(). Returns the counts on rank 0 and None elsewhere.
+    """
+    from mpi4py import MPI  # cannot import mpi4py at module-level for serial compatibility
+
+    ptype_counts = {}
+    for ptype in sorted(field_ids):  # ranks must iterate in same order
+        halo_ids = field_ids[ptype]
+        local = np.bincount(halo_ids[halo_ids != -1], minlength=n_field_haloes).astype(np.int64)
+        total = np.empty_like(local) if comm.rank == 0 else None
+        comm.Reduce(local, total, op=MPI.SUM, root=0)
+        ptype_counts[ptype] = total
+
+    return ptype_counts if comm.rank == 0 else None
+
+
+def assign_haloes_to_ranks(
+    ptype_counts: dict[str, np.ndarray],
+    n_field_haloes: int,
+    config: OctaviusConfig,
+    n_ranks: int,
+) -> np.ndarray:
+    """
+    The binning behind generate_rank_halo_assignments(), from the per-ptype particle counts of each halo. Returns:
+
+    - halo_to_rank: an (n_haloes) array where halo_to_rank[i] = rank which halo i is assigned to.
+    """
+    logger.info(f"Computing halo assignments for {n_ranks} ranks.")
+
     haloes_exist = sum(ptype_counts.values()) > 0
     valid_halo_mask = (
         haloes_exist & (ptype_counts["dm"] >= config.min_dm_per_halo) if "dm" in ptype_counts else haloes_exist
@@ -179,14 +216,14 @@ def generate_rank_halo_assignments(
     all_valid_hids = np.flatnonzero(valid_halo_mask)
 
     logger.info(
-        f"{len(all_valid_hids):,} / {halo_assignments.n_field_haloes:,} haloes above the min_dm_per_halo threshold ({config.min_dm_per_halo})."
+        f"{len(all_valid_hids):,} / {n_field_haloes:,} haloes above the min_dm_per_halo threshold ({config.min_dm_per_halo})."
     )
 
     if all_valid_hids.size == 0:  # guard against no-halo snapshots (high-z)
         logger.warning("No valid halo IDs!")
-        return np.full(shape=halo_assignments.n_field_haloes, fill_value=-1, dtype=np.int64)  # match type check
+        return np.full(shape=n_field_haloes, fill_value=-1, dtype=np.int64)  # match type check
 
-    n_valid_haloes = halo_assignments.n_field_haloes  # at this point the reader has remapped HaloIDs to 0-indexed
+    n_valid_haloes = n_field_haloes  # at this point the reader has remapped HaloIDs to 0-indexed
 
     halo_to_rank = np.full(shape=n_valid_haloes, fill_value=-1, dtype=np.int64)
 

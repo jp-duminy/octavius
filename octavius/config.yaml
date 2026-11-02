@@ -1,5 +1,5 @@
 simulation_type:          SWIFT-KIARA             # see docs
-halo_id_source:           SNAPSHOT                # see docs
+halo_id_source:           SNAPSHOT                # see docs; FOF finds haloes itself, SNAP_OR_FOF only if the snapshot has none
 snapshot_path:            /path/to/snapshot.hdf5
 output_dir:               /path/to/output_directory
 halo_catalogue_path:      /path/to/catalogue_file  # leave blank if using SNAPSHOT haloes
@@ -39,6 +39,13 @@ fof6d:
   velocity_factor:  1                       # velocity-space linking length = velocity_factor * local_velocity_dispersion
   gas_criterion:    COLD_OR_STARFORMING     # criterion for locating galaxy gas
   subhalo_override: true                    # overrides FOF6D subhalo boundaries to the external catalogue
+
+
+fof_haloes:  # only used if halo_id_source is FOF (or SNAP_OR_FOF); haloes below min_dm_per_halo are discarded
+  halo_b:               0.2                 # DM linking length = halo_b * mean DM interparticle separation
+  halo_attach_ptypes:   [gas, star, bh]     # baryons attached to their nearest DM particle's halo; others get no halo
+  write_halo_ids:       false               # write the halo IDs into the snapshot, so later runs can reuse them
+  min_dm_per_halo_to_store:                 # smallest halo written with write_halo_ids (<= min_dm_per_halo; blank = equal)
   
 
 properties:

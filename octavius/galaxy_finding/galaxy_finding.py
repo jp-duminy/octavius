@@ -131,7 +131,7 @@ def find_galaxies(
 
     store_fof6d_results(particles=particles, result=result)
 
-    logger.info(f"Located {result.n_galaxies:,} galaxies.")
+    logger.debug(f"Located {result.n_galaxies:,} galaxies on this rank.")  # global total is logged by the caller
 
     return result
 
@@ -169,7 +169,9 @@ def prepare_fof6d_data(
     eligible_set = np.zeros(star_counts.shape[0], dtype=bool)
     eligible_set[eligible_haloes] = True
 
-    gas_mask = apply_gas_mask(gas=particles["gas"], constants=constants, config=config)
+    gas_mask = (
+        apply_gas_mask(gas=particles["gas"], constants=constants, config=config) if "gas" in particles else None
+    )  # only used for gas below, so runs without gas never need it
 
     pos_list, vel_list, ptype_list, index_list, hid_list = [], [], [], [], []
     for ptype in ["star", "gas", "bh"]:

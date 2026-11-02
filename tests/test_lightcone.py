@@ -23,6 +23,7 @@ from octavius.lightcone.geometry import (
     max_off_axis_angle,
     snapshot_shells,
     observed_redshift,
+    random_transform,
 )
 from octavius.utils.loader import load_catalogue
 
@@ -189,6 +190,59 @@ def test_lightcone_geometry_and_counts(catalogues: list[Path], tmp_path: Path, f
     assert abs(len(d) - expected) < 5 * np.sqrt(expected)
 
 
+def test_random_transform_viewing_axis():
+    """
+    With a viewing axis, the line of sight (lightcone z) runs along +axis of the box, up to the periodic shift.
+
+    AI-generated: claude-opus-5-5
+    """
+    rng = np.random.default_rng(0)
+    pos = rng.uniform(0.0, BOXSIZE_MPC, size=(100, 3))
+    for axis_index, axis in enumerate("xyz"):
+        for _ in range(10):
+            transform = random_transform(rng, BOXSIZE_MPC, viewing_axis=axis)
+            line_of_sight = transform.positions(pos, BOXSIZE_MPC)[:, 2]
+            np.testing.assert_allclose(line_of_sight, np.mod(pos[:, axis_index] + transform.shift[2], BOXSIZE_MPC))
+
+
+def test_viewing_axis_and_box_volumes(catalogues: list[Path], tmp_path: Path):
+    """
+    The viewing axis and the number of box volumes in each shell are stored in the lightcone.
+
+    AI-generated: claude-opus-5-5
+    """
+    area, z_min, z_max = 4.0, 0.2, 0.8
+    (path,) = build_lightcone(
+        catalogue_paths=catalogues,
+        output_path=tmp_path / "lc.hdf5",
+        area=area,
+        z_min=z_min,
+        z_max=z_max,
+        viewing_axis="X",
+    )
+    with load_lightcone(path) as lc:
+        assert lc.header["viewing_axis"] == "x"
+
+    # the shell volumes should add up to the volume of the whole field
+    table = DistanceRedshiftTable(cosmology=flat_cosmology(), z_max=2.0)
+    solid_angle = area * (np.pi / 180) ** 2
+    volume = solid_angle / 3 * (table.distance(z_max) ** 3 - table.distance(z_min) ** 3)
+    with h5py.File(path, "r") as f:
+        box_volumes = f["shells/box_volumes"][:]
+        assert np.isclose(f["header"].attrs["max_box_volumes"], np.nanmax(box_volumes))
+    np.testing.assert_allclose(np.nansum(box_volumes), volume / BOXSIZE_MPC**3, rtol=1e-3)
+
+    with pytest.raises(ValueError, match="viewing_axis"):
+        build_lightcone(
+            catalogue_paths=catalogues,
+            output_path=tmp_path / "bad.hdf5",
+            area=area,
+            z_min=z_min,
+            z_max=z_max,
+            viewing_axis="w",
+        )
+
+
 def test_lightcone_reproducible(catalogues: list[Path], tmp_path: Path):
     kwargs = {"catalogue_paths": catalogues, "area": 1.0, "z_min": 0.2, "z_max": 0.8}
     (a,) = build_lightcone(output_path=tmp_path / "a.hdf5", seed=7, **kwargs)
@@ -306,9 +360,11 @@ def test_lightcone_cli(catalogues: list[Path], tmp_path: Path, monkeypatch: pyte
     output = tmp_path / "cli.hdf5"
     argv = ["octavius", "lightcone", *map(str, catalogues), "-a", "1", "--z-min", "0.2", "--z-max", "0.8"]
     argv += ["-o", str(output), "--shape", "circle", "-p", "mass_star", "--redshift-space", "--seed", "5", "-n", "2"]
+    argv += ["--viewing-axis", "y"]
     monkeypatch.setattr("sys.argv", argv)
     main()
     for i in range(2):
         with load_lightcone(tmp_path / f"cli_{i:03d}.hdf5") as lc:
             assert lc.header["field_shape"] == "circle" and lc.header["seed"] == "5"
+            assert lc.header["viewing_axis"] == "y"
             assert {"mass_star", "z_obs"} <= set(lc.keys())

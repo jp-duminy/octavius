@@ -176,6 +176,12 @@ def parse_args(args: list[str] | None = None) -> argparse.Namespace:
         default="snapshot",
         help="How often to draw a new random box transform.",
     )
+    lightcone_parser.add_argument(
+        "--viewing-axis",
+        choices=["x", "y", "z"],
+        default=None,
+        help="Box axis to look along (random if not given).",
+    )
     lightcone_parser.add_argument("--position-column", default=None, help="Catalogue dataset placing each object.")
     lightcone_parser.add_argument("--velocity-column", default=None, help="Catalogue dataset of peculiar velocities.")
     lightcone_parser.add_argument("--overwrite", action="store_true", help="Replace existing output files.")
@@ -566,6 +572,7 @@ def main() -> None:
             seed=args.seed,
             redshift_space=args.redshift_space,
             randomise=args.randomise,
+            viewing_axis=args.viewing_axis,
             position_column=args.position_column,
             velocity_column=args.velocity_column,
             overwrite=args.overwrite,

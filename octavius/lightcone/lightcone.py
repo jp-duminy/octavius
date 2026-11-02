@@ -27,10 +27,12 @@ from ..log import get_logger
 from .geometry import (
     FIELD_SHAPES,
     RANDOMISE_MODES,
+    VIEWING_AXES,
     IDENTITY_TRANSFORM,
     DistanceRedshiftTable,
     BoxTransform,
     Shell,
+    cone_volume,
     field_half_angle,
     max_off_axis_angle,
     snapshot_shells,
@@ -76,6 +78,7 @@ def build_lightcone(
     seed: int | None = None,
     redshift_space: bool = False,
     randomise: str = "snapshot",
+    viewing_axis: str | None = None,
     position_column: str | None = None,
     velocity_column: str | None = None,
     overwrite: bool = False,
@@ -114,6 +117,9 @@ def build_lightcone(
         shell, but repeat across the field when it is wider than the box), ``replica`` (every box replica; fewer
         repeated structures, but discontinuities at replica faces) or ``none`` (one transform for the whole lightcone).
         Default: ``snapshot``
+    viewing_axis: str or None
+        Box axis (``x``, ``y`` or ``z``) to look along; the transverse axes and the shift are still randomised. If
+        ``None``, the viewing axis is random too. Default: ``None``
     position_column, velocity_column: str or None
         Catalogue datasets placing each object. Defaults: ``com_pos_baryon``/``com_vel_baryon`` for galaxies and
         ``minpot_pos``/``com_vel_total`` for haloes.
@@ -135,6 +141,10 @@ def build_lightcone(
         raise ValueError(f"Need 0 <= z_min < z_max (got z_min = {z_min}, z_max = {z_max}).")
     if n_lightcones < 1:
         raise ValueError("Need at least one lightcone.")
+    if viewing_axis is not None:
+        viewing_axis = viewing_axis.lower()
+        if viewing_axis not in VIEWING_AXES:
+            raise ValueError(f"viewing_axis must be one of {VIEWING_AXES} or None, not '{viewing_axis}'.")
 
     properties = list(properties or [])
     clashes = set(properties) & set(LIGHTCONE_COLUMNS)
@@ -178,12 +188,28 @@ def build_lightcone(
 
     seed_sequence = np.random.SeedSequence(seed)
     rngs = [np.random.default_rng(s) for s in seed_sequence.spawn(n_lightcones)]
-    whole_transforms = [random_transform(rng, boxsize) for rng in rngs] if randomise == "none" else None
+    whole_transforms = [random_transform(rng, boxsize, viewing_axis) for rng in rngs] if randomise == "none" else None
 
     logger.info(
         f"Building {n_lightcones} {field_shape} lightcone(s) of {group_type}: {area} deg^2, {z_min} < z < {z_max}, "
-        f"{len(shells)} shells from {len(snapshots)} catalogues, box {boxsize:.1f} cMpc."
+        f"{len(shells)} shells from {len(snapshots)} catalogues, box {boxsize:.1f} cMpc, viewing axis "
+        f"{viewing_axis or 'random'}."
     )
+
+    # each shell is filled from one box, so its volume in box volumes is how often that box's objects are reused:
+    # above 1 they repeat within a lightcone, and the nearer to 1, the more objects different lightcones share
+    solid_angle = area * (np.pi / 180.0) ** 2
+    box_volumes = {
+        shell.snapshot_index: cone_volume(d_min=shell.d_min, d_max=shell.d_max, solid_angle=solid_angle) / boxsize**3
+        for shell in shells
+    }
+    max_box_volumes = max(box_volumes.values(), default=0.0)
+    logger.info(f"The largest shell spans {max_box_volumes:.3g} box volumes (shell volume / boxsize^3).")
+    if max_box_volumes > 1.0:
+        logger.warning(
+            f"Shells span up to {max_box_volumes:.3g} box volumes, so objects repeat within each lightcone and "
+            "lightcones share most of their objects; the scatter between lightcones will underestimate cosmic variance."
+        )
 
     selections: list[list[dict]] = [[] for _ in range(n_lightcones)]
     property_attrs: dict[str, dict] = {}
@@ -193,7 +219,8 @@ def build_lightcone(
         cells = replica_cells(boxsize=boxsize, d_min=shell.d_min, d_max=shell.d_max, theta_max=theta_max)
         logger.info(
             f"Shell z = {table.redshift(shell.d_min):.3f}-{table.redshift(shell.d_max):.3f} from {snapshot['path'].name} "
-            f"(z = {snapshot['redshift']:.3f}): {len(cells)} box replicas."
+            f"(z = {snapshot['redshift']:.3f}): {len(cells)} box replicas, "
+            f"{box_volumes[shell.snapshot_index]:.3g} box volumes."
         )
 
         with load_catalogue(catalogue_path=snapshot["path"]) as catalogue:
@@ -211,7 +238,7 @@ def build_lightcone(
 
         for i, rng in enumerate(rngs):
             if randomise == "snapshot":
-                transform = random_transform(rng, boxsize)
+                transform = random_transform(rng, boxsize, viewing_axis)
             elif randomise == "none":
                 transform = whole_transforms[i]
             else:
@@ -220,7 +247,7 @@ def build_lightcone(
             pos_t = transform.positions(pos, boxsize)
             for cell in cells:
                 if randomise == "replica":
-                    transform = random_transform(rng, boxsize)
+                    transform = random_transform(rng, boxsize, viewing_axis)
                     pos_t = transform.positions(pos, boxsize)
                 selection = _select(
                     pos_t=pos_t,
@@ -250,6 +277,8 @@ def build_lightcone(
         "z_max": z_max,
         "redshift_space": redshift_space,
         "randomise": randomise,
+        "viewing_axis": viewing_axis or "random",
+        "max_box_volumes": max_box_volumes,
         "seed": str(seed_sequence.entropy),
         "position_column": position_column,
         "velocity_column": velocity_column if redshift_space else "",
@@ -261,6 +290,7 @@ def build_lightcone(
         "snapshot_redshift": snapshot_redshifts,
         "d_min": _per_snapshot(shells, len(snapshots), "d_min"),
         "d_max": _per_snapshot(shells, len(snapshots), "d_max"),
+        "box_volumes": np.array([box_volumes.get(i, np.nan) for i in range(len(snapshots))]),
     }
 
     for i, path in enumerate(lightcone_paths):

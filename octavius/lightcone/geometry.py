@@ -21,6 +21,7 @@ from scipy.optimize import brentq
 
 FIELD_SHAPES = ("square", "circle")
 RANDOMISE_MODES = ("none", "snapshot", "replica")
+VIEWING_AXES = ("x", "y", "z")
 SPEED_OF_LIGHT_KMS = 299792.458
 
 
@@ -173,15 +174,31 @@ class BoxTransform:
 IDENTITY_TRANSFORM = BoxTransform(permutation=np.arange(3), flips=np.ones(3), shift=np.zeros(3))
 
 
-def random_transform(rng: np.random.Generator, boxsize: float) -> BoxTransform:
+def random_transform(rng: np.random.Generator, boxsize: float, viewing_axis: str | None = None) -> BoxTransform:
     """
-    Draws one of the 48 symmetry operations of the cube with a uniform random shift.
+    Draws one of the 48 symmetry operations of the cube with a uniform random shift. If viewing_axis (x, y or z) is
+    given, only those which look along +viewing_axis of the box are drawn: the transverse axes are still randomly
+    swapped and reflected.
     """
-    return BoxTransform(
-        permutation=rng.permutation(3),
-        flips=rng.choice([-1.0, 1.0], size=3),
-        shift=rng.uniform(0.0, boxsize, size=3),
-    )
+    if viewing_axis is None:
+        permutation = rng.permutation(3)
+        flips = rng.choice([-1.0, 1.0], size=3)
+    else:
+        axis = VIEWING_AXES.index(viewing_axis)
+        transverse = rng.permutation([k for k in range(3) if k != axis])
+        permutation = np.append(transverse, axis)  # the lightcone frame's +z (line of sight) is the box's +axis
+        flips = np.append(rng.choice([-1.0, 1.0], size=2), 1.0)
+
+    return BoxTransform(permutation=permutation, flips=flips, shift=rng.uniform(0.0, boxsize, size=3))
+
+
+def cone_volume(d_min: float, d_max: float, solid_angle: float) -> float:
+    """
+    Comoving volume (Mpc^3) of the field between distances d_min and d_max, for a solid angle in steradians.
+
+    AI-generated: claude-opus-5-5
+    """
+    return solid_angle * (d_max**3 - d_min**3) / 3.0
 
 
 def replica_cells(boxsize: float, d_min: float, d_max: float, theta_max: float) -> np.ndarray:

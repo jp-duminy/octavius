@@ -23,7 +23,7 @@ catalogue_paths = sorted(Path("/path/to/catalogues").glob("octavius_*.hdf5"))
 )
 ```
 
-`build_lightcone()` returns a list of the files written. With `n_lightcones > 1`, independent lightcones are written to `lightcone_000.hdf5`, `lightcone_001.hdf5`, and so on.
+`build_lightcone()` returns a list of the files written. With `n_lightcones > 1`, lightcones with different random box transforms (see below) are written to `lightcone_000.hdf5`, `lightcone_001.hdf5`, and so on. They are drawn from the same simulation, so they are only close to independent when each shell is small compared to the box (see [box volumes](#box-volumes)).
 
 The same is available from the command line (`octavius lightcone -h` lists all options):
 
@@ -45,6 +45,13 @@ The box is periodically replicated to cover each shell, so the field may be wide
 - `snapshot` (default): once per shell. Structures are continuous within a shell, but repeat across the field when it is wider than the box.
 - `replica`: for every box replica. Fewer repeated structures, but discontinuities at replica faces.
 - `none`: one transform for the whole lightcone.
+
+By default the viewing direction is random too. To look along a particular axis of the box, set `viewing_axis` to `x`, `y` or `z` (`--viewing-axis` on the command line); the other two axes are still randomly swapped and reflected, and the box randomly shifted, so several lightcones along the same axis still differ.
+
+(box-volumes)=
+### Box volumes
+
+Each shell is filled from a single box, so the shell volume divided by the box volume (boxsize³) is how many times that box's objects are used. Above 1, objects repeat within a lightcone; and the closer it is to 1, the more objects different lightcones share, so the scatter between them underestimates cosmic variance. This ratio is logged for each shell (with a warning if any shell exceeds 1) and stored as `box_volumes` in `shells`, with the largest as `max_box_volumes` in the header.
 
 :::{note}
 The same object can appear more than once in a lightcone: in different replicas of its box, or (at different epochs) from different snapshots. The `replica` column gives the box replica each entry came from.
@@ -70,7 +77,7 @@ with oc.load_lightcone(lightcone_path) as lc:
 Each lightcone file contains:
 
 - `header`: construction parameters (area, shape, redshift range, seed, ...) and cosmology, available as `lc.header`.
-- `shells`: per source catalogue, its path, redshift and the shell (`d_min`, `d_max`, comoving Mpc) it fills.
+- `shells`: per source catalogue, its path, redshift, the shell (`d_min`, `d_max`, comoving Mpc) it fills, and that shell's volume in box volumes (`box_volumes`).
 - `objects`: per-object datasets, sorted by comoving distance: `ra`, `dec` (deg), `comoving_distance` (Mpc), `z_cos`, `z_obs` (if requested), `snapshot_index`, `group_index`, `replica`, and the requested properties with their catalogue units.
 
 `snapshot_index` indexes `lc.catalogue_paths`, and `group_index` is the object's row in that catalogue, so any other catalogue information can be joined back:

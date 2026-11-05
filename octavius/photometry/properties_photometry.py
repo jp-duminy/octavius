@@ -203,7 +203,7 @@ def run_photometry(simulation_data: SimulationData, config: OctaviusConfig) -> N
         flux_factor_app=flux_factor_app,
     )
 
-    logger.info(f"Computing photometric properties for galaxies: {galaxies.n_groups:,} members")
+    logger.info("Computing photometric properties for galaxies.")
     (
         mag_abs,
         mag_abs_nodust,

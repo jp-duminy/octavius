@@ -162,9 +162,10 @@ def output_summary(
     all_timings: list[dict[str, float]],
     catalogue_path: Path,
     n_ranks: int,
+    group_counts: tuple[int, int, int] | None = None,
 ) -> None:
     """
-    Logs the analysis summary.
+    Logs the analysis summary; group_counts is (galaxies, field haloes, subhaloes) in the catalogue.
     """
     logger = get_logger()
     catalogue_size = catalogue_path.stat().st_size / (1024**2)
@@ -173,6 +174,13 @@ def output_summary(
     width = max(len(title), 50) + 4
     logger.info("=" * width)
     logger.info(title)
+
+    if group_counts is not None:
+        n_galaxies, n_field_haloes, n_subhaloes = group_counts
+        counts = f"  Found {n_galaxies:,} galaxies in {n_field_haloes:,} haloes"
+        if n_subhaloes > 0:
+            counts += f" and {n_subhaloes:,} subhaloes"
+        logger.info(counts + ".")
 
     stages = all_timings[0].keys()
     for stage in stages:

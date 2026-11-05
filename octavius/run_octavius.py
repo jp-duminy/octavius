@@ -22,6 +22,7 @@ from contextlib import contextmanager
 from time import perf_counter
 
 # other packages
+import h5py
 import numpy as np
 import numba
 
@@ -510,6 +511,7 @@ def analyse_snapshot(
                 all_timings=all_timings,
                 catalogue_path=catalogue_path,
                 n_ranks=size,
+                group_counts=_count_catalogue_groups(catalogue_path),
             )
             clean_logs(
                 output_dir=config.output_dir,
@@ -519,6 +521,20 @@ def analyse_snapshot(
             )
 
     return catalogue_path
+
+
+def _count_catalogue_groups(catalogue_path: Path) -> tuple[int, int, int]:
+    """
+    Returns the numbers of galaxies, field haloes and subhaloes in a finished catalogue, for the run summary.
+
+    AI-generated: claude-opus-5-5
+    """
+    with h5py.File(catalogue_path, "r") as f:
+        n_galaxies = len(f["galaxy_data/membership/field_halo_index"]) if "galaxy_data" in f else 0
+        depth = f["halo_data/membership/depth"][...] if "halo_data" in f else np.zeros(0, dtype=np.int64)
+
+    n_field_haloes = int(np.sum(depth == 0))
+    return n_galaxies, n_field_haloes, len(depth) - n_field_haloes
 
 
 def generate_config(output_dir: Path | str = Path(".")) -> None:

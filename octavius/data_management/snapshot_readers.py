@@ -268,7 +268,8 @@ class SimbaCReader(SimbaReader):
 
     column_indices = {**SimbaReader.column_indices, "helium_fraction": 2}
 
-    # Chem5 order (enum chem5_element in KIARA's feedback_properties.h); column 0 is total metallicity
+    # Chem5 order (enum chem5_element in KIARA's feedback_properties.h): column 0 is the total metallicity and
+    # the last column (chem5_element_unknown) holds the metals beyond Ge, which are included in the total
     element_columns = [
         None,
         "H",
@@ -303,6 +304,7 @@ class SimbaCReader(SimbaReader):
         "Zn",
         "Ga",
         "Ge",
+        None,
     ]
 
 

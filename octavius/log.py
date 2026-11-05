@@ -187,7 +187,7 @@ def output_summary(
     stages = all_timings[0].keys()
     for stage in stages:
         times = [t[stage] for t in all_timings if stage in t]
-        if n_ranks == 1:
+        if len(times) == 1:  # serial run, or a step done by rank 0 alone
             logger.info(f"  {stage}: {times[0]:.1f}s")
         else:
             logger.info(f"  {stage}: {max(times):.1f}s (spread of {max(times) - min(times):.1f}s)")

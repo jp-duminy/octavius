@@ -478,12 +478,22 @@ def analyse_snapshot(
 
     catalogue_path = output_catalogue_path(snapshot_path=config.snapshot_path, output_dir=config.output_dir)
 
-    write_catalogue(
-        packed_data=packed_data,
-        catalogue_path=catalogue_path,
-        internals=internals,
-        comm=comm,
-    )
+    with timer("Write catalogue", timings=timings):
+        write_catalogue(
+            packed_data=packed_data,
+            catalogue_path=catalogue_path,
+            internals=internals,
+            comm=comm,
+        )
+        if rank == 0:
+            write_catalogue_headers(
+                catalogue_path=catalogue_path,
+                snapshot_path=config.snapshot_path,
+                config=config,
+                internals=internals,
+                sim_attrs=reader.simulation_attributes,
+                n_ranks=size,
+            )
 
     # diagnostics
     if comm is not None:
@@ -496,35 +506,26 @@ def analyse_snapshot(
     all_peak_memory = comm.gather(peak_memory, root=0) if comm is not None else [peak_memory]
 
     if rank == 0:
-        write_catalogue_headers(
-            catalogue_path=catalogue_path,
-            snapshot_path=config.snapshot_path,
-            config=config,
-            internals=internals,
-            sim_attrs=reader.simulation_attributes,
-            n_ranks=size,
-        )
-
-        if rank == 0:
-            if config.compress_catalogue:
-                try:
+        if config.compress_catalogue:
+            try:
+                with timer("Compress catalogue", timings=all_timings[0]):  # rank 0 alone
                     repack_catalogue(catalogue_path)
-                except FileNotFoundError:
-                    logger.warning("h5repack not available; indices in catalogue are uncompressed.")
+            except FileNotFoundError:
+                logger.warning("h5repack not available; indices in catalogue are uncompressed.")
 
-            output_summary(
-                all_timings=all_timings,
-                catalogue_path=catalogue_path,
-                n_ranks=size,
-                peak_memory=all_peak_memory,
-                group_counts=_count_catalogue_groups(catalogue_path),
-            )
-            clean_logs(
-                output_dir=config.output_dir,
-                snapshot_path=config.snapshot_path,
-                n_ranks=size,
-                keep_logs=config.keep_logs,
-            )
+        output_summary(
+            all_timings=all_timings,
+            catalogue_path=catalogue_path,
+            n_ranks=size,
+            peak_memory=all_peak_memory,
+            group_counts=_count_catalogue_groups(catalogue_path),
+        )
+        clean_logs(
+            output_dir=config.output_dir,
+            snapshot_path=config.snapshot_path,
+            n_ranks=size,
+            keep_logs=config.keep_logs,
+        )
 
     return catalogue_path
 

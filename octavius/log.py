@@ -163,9 +163,11 @@ def output_summary(
     catalogue_path: Path,
     n_ranks: int,
     group_counts: tuple[int, int, int] | None = None,
+    peak_memory: list[float] | None = None,
 ) -> None:
     """
-    Logs the analysis summary; group_counts is (galaxies, field haloes, subhaloes) in the catalogue.
+    Logs the analysis summary; group_counts is (galaxies, field haloes, subhaloes) in the catalogue and peak_memory
+    the peak memory of each rank in GB.
     """
     logger = get_logger()
     catalogue_size = catalogue_path.stat().st_size / (1024**2)
@@ -192,4 +194,13 @@ def output_summary(
 
     total = max(sum(t.values()) for t in all_timings)
     logger.info(f"  Total runtime: {total:.1f}s")
+
+    if peak_memory is not None:
+        if n_ranks == 1:
+            logger.info(f"  Peak memory: {peak_memory[0]:.1f} GB")
+        else:
+            # the ranks need not peak at the same time, so their sum is an upper limit on the total
+            logger.info(
+                f"  Peak memory: {max(peak_memory):.1f} GB on the largest rank, {sum(peak_memory):.1f} GB summed over ranks"
+            )
     logger.info("=" * width)

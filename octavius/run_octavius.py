@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 # default libraries
 from pathlib import Path
 import argparse
+import resource
 import shutil
 from dataclasses import replace
 from contextlib import contextmanager
@@ -490,6 +491,10 @@ def analyse_snapshot(
     else:
         all_timings = [timings]
 
+    # each process's peak memory (max resident set size, in kB on Linux), which the kernel tracks at no cost
+    peak_memory = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024**2  # GB
+    all_peak_memory = comm.gather(peak_memory, root=0) if comm is not None else [peak_memory]
+
     if rank == 0:
         write_catalogue_headers(
             catalogue_path=catalogue_path,
@@ -511,6 +516,7 @@ def analyse_snapshot(
                 all_timings=all_timings,
                 catalogue_path=catalogue_path,
                 n_ranks=size,
+                peak_memory=all_peak_memory,
                 group_counts=_count_catalogue_groups(catalogue_path),
             )
             clean_logs(

@@ -21,6 +21,7 @@ from pathlib import Path
 import numpy as np
 import h5py
 import numba
+import astropy.units as u
 from scipy.spatial.transform import Rotation
 from scipy.spatial import KDTree
 from scipy.sparse import csr_array
@@ -33,6 +34,7 @@ from ..data_management import (
     OctaviusConfig,
     OctaviusConstants,
     build_reader,
+    CODE_UNITS,
 )
 from ..data_management.pipeline_management import load_internals, Internals, PipelineStage
 
@@ -46,7 +48,7 @@ logger = get_logger()
 
 def build_analyser(
     catalogue: OctaviusCatalogue,
-    config: OctaviusConfig,
+    config: OctaviusConfig | None = None,
     snapshot_path: Path | None = None,
 ) -> OctaviusAnalyser:
     """
@@ -57,8 +59,8 @@ def build_analyser(
     ----------
     catalogue: OctaviusCatalogue
         OctaviusCatalogue object corresponding to the snapshot.
-    config: OctaviusConfig
-        OctaviusConfig object.
+    config: OctaviusConfig or None
+        OctaviusConfig object. If not given, the config stored in the catalogue is used.
     snapshot_path: pathlib.Path or None
         Path object pointing to the original, raw snapshot (overrides config field).
 
@@ -71,19 +73,40 @@ def build_analyser(
     -----
     The config can be modified from the one used to create the snapshot. Pipeline-specific parameters will be disregarded.
     """
+    config_from_catalogue = config is None
+    if config_from_catalogue:
+        overrides = {"snapshot_path": snapshot_path} if snapshot_path is not None else {}
+        config = OctaviusConfig.from_catalogue(catalogue_path=catalogue._cat, **overrides)
+
+        # the catalogue may have been made on a machine with more cores than this one
+        if config.cores_per_rank > numba.config.NUMBA_NUM_THREADS:
+            config = replace(config, cores_per_rank=numba.config.NUMBA_NUM_THREADS)
+
+    snapshot_path = Path(snapshot_path or config.snapshot_path)
+    if not snapshot_path.exists():
+        raise FileNotFoundError(
+            f"Snapshot not found at {snapshot_path}; please pass its location with build_analyser(snapshot_path=...)."
+        )
+
     # initialise data structures
     constants = OctaviusConstants(mu=config.MU, frad=config.FRAD)
-    snapshot_path = snapshot_path or config.snapshot_path
     reader = build_reader(snapshot_path=snapshot_path, constants=constants, config=config)
     internals = load_internals(internals_filepath=INTERNALS_FILEPATH, config=config)
 
-    return OctaviusAnalyser(
+    analyser = OctaviusAnalyser(
         reader=reader,
         catalogue=catalogue,
         config=config,
         constants=constants,
         internals=internals,
     )
+
+    if config_from_catalogue:  # logged here as the analyser sets up the logger
+        logger.info(
+            f"No config given, so using the config stored in {catalogue._cat.name} (snapshot: {snapshot_path})."
+        )
+
+    return analyser
 
 
 @dataclass(frozen=True, slots=True)
@@ -448,6 +471,77 @@ class OctaviusAnalyser:
         )
         return results
 
+    def get_particle_data(
+        self,
+        name: str,
+        ptype: str,
+        group_indices: int | list[int] | np.ndarray,
+        group_type: str = "galaxies",
+        to_units: str | None = None,
+        to_physical: bool = False,
+    ) -> np.ndarray | tuple[np.ndarray, np.ndarray]:
+        """
+        Reads a particle quantity from the raw snapshot for the members of one or more groups. Values are returned in
+        Octavius code units (h factors removed) unless converted with to_units.
+
+        Parameters
+        ----------
+        name: str
+            The Octavius name of the particle quantity (e.g. ``mass``, ``sfr``, ``metallicity``, ``temperature``).
+        ptype: str
+            The particle type to read: ``star``, ``gas``, ``dm`` or ``bh``.
+        group_indices: int or list[int] or np.ndarray
+            The index (or indices) into the Octavius catalogue of the group(s) to read particles for.
+        group_type: str, optional
+            The type of group the indices are specified for: ``galaxies`` (default) or ``haloes``.
+        to_units: str, optional
+            Target units to convert the quantity to.
+        to_physical: bool, optional
+            Apply conversion to physical (default: code units, which may be comoving).
+
+        Returns
+        -------
+        values: np.ndarray
+            If group_indices is a single integer, the particle values of that group.
+        values, offsets: tuple[np.ndarray, np.ndarray]
+            If group_indices is a list or array, the particle values of all the groups concatenated in the order given,
+            and the offsets such that ``values[offsets[i] : offsets[i + 1]]`` belongs to ``group_indices[i]``.
+
+        AI-generated: claude-opus-5-5
+        """
+        if group_type not in self._collections:
+            raise KeyError(f"Group type '{group_type}' is not present in the catalogue.")
+
+        membership_group = self._collections[group_type]._data["membership"]
+        if f"{ptype}_indices" not in membership_group:
+            raise KeyError(f"No {ptype} membership for {group_type} in the catalogue.")
+
+        if not self._reader.has_dataset(ptype=ptype, dataset=name):
+            raise KeyError(self._reader.missing_dataset_message(ptype=ptype, dataset=name))
+
+        single_group = np.ndim(group_indices) == 0
+        indices = np.atleast_1d(np.asarray(group_indices, dtype=np.int64))
+
+        n_groups = len(self._collections[group_type])
+        if np.any(indices < 0) or np.any(indices >= n_groups):
+            raise IndexError(f"Group indices must lie in [0, {n_groups}) for {group_type}.")
+
+        subset = self._extract_ptype(
+            ptype=ptype, membership_group=membership_group, group_indices=indices, columns=[name]
+        )
+        values = subset.columns[name]
+
+        if to_physical:
+            values *= self._reader.simulation_attributes.scale_factor ** CODE_UNITS[name].a_exponent
+
+        if to_units is not None:
+            values *= CODE_UNITS[name].unit.to(u.Unit(to_units))
+
+        if single_group:
+            return values
+
+        return values, subset.offsets
+
     def _extract_groups(
         self,
         group_type: str,
@@ -506,20 +600,18 @@ class OctaviusAnalyser:
 
             position += lengths[i]
 
-        # sort indices first (must be increasing)
-        sort_order = np.argsort(particle_indices, stable=True)
-        sorted_indices = particle_indices[sort_order]
+        # reads need strictly increasing indices; inclusive groups (e.g. a halo and its subhalo) can share particles
+        unique_indices, inverse = np.unique(particle_indices, return_inverse=True)
 
         column_data = self._reader.read_requested_columns(
             ptype=ptype,
             datasets=columns,
-            sorted_snapshot_indices=sorted_indices,
+            sorted_snapshot_indices=unique_indices,
         )
 
-        # then unsort back to group order (necessary for sorted_idx in pipeline stages)
-        unsort_order = np.argsort(sort_order)
+        # then map back to group order (necessary for sorted_idx in pipeline stages)
         for col in column_data:
-            column_data[col] = column_data[col][unsort_order]
+            column_data[col] = column_data[col][inverse]
 
         data = SubsetParticleData(columns=column_data, offsets=new_offsets)
 

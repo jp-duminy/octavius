@@ -203,7 +203,7 @@ def run_photometry(simulation_data: SimulationData, config: OctaviusConfig) -> N
         flux_factor_app=flux_factor_app,
     )
 
-    logger.info(f"Computing photometric properties for galaxies: {galaxies.n_groups:,} members")
+    logger.info("Computing photometric properties for galaxies.")
     (
         mag_abs,
         mag_abs_nodust,
@@ -249,7 +249,7 @@ def run_photometry(simulation_data: SimulationData, config: OctaviusConfig) -> N
 
     galaxies.write_batch(results=results)  # use write_batch for shape checking
 
-    logger.info(f"Successfully computed photometric properties for {galaxies.n_groups:,} galaxies.")
+    logger.info("Photometric properties computed for galaxies.")
 
 
 def _prepare_galaxy_quantities(galaxies: GroupStore, Z_sun: float) -> tuple[np.ndarray, np.ndarray]:

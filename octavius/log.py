@@ -162,9 +162,12 @@ def output_summary(
     all_timings: list[dict[str, float]],
     catalogue_path: Path,
     n_ranks: int,
+    group_counts: tuple[int, int, int] | None = None,
+    peak_memory: list[float] | None = None,
 ) -> None:
     """
-    Logs the analysis summary.
+    Logs the analysis summary; group_counts is (galaxies, field haloes, subhaloes) in the catalogue and peak_memory
+    the peak memory of each rank in GB.
     """
     logger = get_logger()
     catalogue_size = catalogue_path.stat().st_size / (1024**2)
@@ -174,14 +177,30 @@ def output_summary(
     logger.info("=" * width)
     logger.info(title)
 
+    if group_counts is not None:
+        n_galaxies, n_field_haloes, n_subhaloes = group_counts
+        counts = f"  Found {n_galaxies:,} galaxies in {n_field_haloes:,} haloes"
+        if n_subhaloes > 0:
+            counts += f" and {n_subhaloes:,} subhaloes"
+        logger.info(counts + ".")
+
     stages = all_timings[0].keys()
     for stage in stages:
         times = [t[stage] for t in all_timings if stage in t]
-        if n_ranks == 1:
+        if len(times) == 1:  # serial run, or a step done by rank 0 alone
             logger.info(f"  {stage}: {times[0]:.1f}s")
         else:
             logger.info(f"  {stage}: {max(times):.1f}s (spread of {max(times) - min(times):.1f}s)")
 
     total = max(sum(t.values()) for t in all_timings)
     logger.info(f"  Total runtime: {total:.1f}s")
+
+    if peak_memory is not None:
+        if n_ranks == 1:
+            logger.info(f"  Peak memory: {peak_memory[0]:.1f} GB")
+        else:
+            # the ranks need not peak at the same time, so their sum is an upper limit on the total
+            logger.info(
+                f"  Peak memory: {max(peak_memory):.1f} GB on the largest rank, {sum(peak_memory):.1f} GB summed over ranks"
+            )
     logger.info("=" * width)

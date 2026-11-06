@@ -12,6 +12,7 @@ from yaml import safe_load
 from pathlib import Path
 
 # other packages
+import h5py
 from astropy.constants import codata2022 as codata
 from astropy.constants import iau2015 as iau
 import astropy.units as u
@@ -24,7 +25,9 @@ from ..log import get_logger
 logger = get_logger()
 
 # for config parsing
-CONFIG_FIELDS = frozenset({"thresholds", "physics", "fof6d", "fof_haloes", "properties", "photometry", "parallelism", "logging"})
+CONFIG_FIELDS = frozenset(
+    {"thresholds", "physics", "fof6d", "fof_haloes", "properties", "photometry", "parallelism", "logging"}
+)
 FILEPATHS = frozenset({"snapshot_path", "output_dir", "halo_catalogue_path", "photometry_table_path"})
 VALID_SIM_TYPES = frozenset({"SIMBA", "SIMBA-C", "SWIFT-KIARA", "SWIFT-EAGLE", "SWIFT-COLIBRE", "TNG"})
 VALID_HALO_CATS = frozenset({"SNAPSHOT", "AHF", "HBT-HERONS", "SUBFIND", "FOF", "SNAP_OR_FOF"})
@@ -258,6 +261,76 @@ class OctaviusConfig:
 
         return cls(**flat)  # keyword unpacking saves us from a 35 argument instantiation
 
+    @classmethod
+    def from_catalogue(cls, catalogue_path: Path | str, **overrides: Any) -> OctaviusConfig:
+        """
+        Rebuilds the config stored in an Octavius catalogue (the one used to make it).
+
+        Parameters
+        ----------
+        catalogue_path: pathlib.Path or str
+            Path object pointing to an Octavius catalogue.
+        **overrides: Any
+            Any overrides to config fields stored in the catalogue.
+
+        Returns
+        -------
+        config: OctaviusConfig
+            The config dataclass.
+
+        Notes
+        -----
+        If the photometry table stored in the catalogue does not exist (e.g. the catalogue has been moved to another
+        machine), the photometry stage is turned off with a warning.
+
+        AI-generated: claude-opus-5-5
+        """
+        with h5py.File(catalogue_path, "r") as f:
+            if "metadata/config_parameters" not in f:
+                raise KeyError(f"{Path(catalogue_path).name} does not store its config; please provide one.")
+
+            stored = f["metadata/config_parameters"]
+            flat: dict[str, Any] = {key: _from_hdf5_value(value) for key, value in stored.attrs.items()}
+            for name, group in stored.items():  # dict fields (e.g. stages) are stored as groups
+                flat[name] = {key: _from_hdf5_value(value) for key, value in group.attrs.items()}
+
+        # fields from a newer version of Octavius are dropped; fields missing from an older one take their defaults
+        known_fields = {f.name for f in fields(cls)}
+        unknown_fields = sorted(set(flat) - known_fields)
+        if unknown_fields:
+            logger.warning(f"Ignoring config fields unknown to this version of Octavius: {', '.join(unknown_fields)}.")
+            flat = {key: value for key, value in flat.items() if key in known_fields}
+
+        flat.update(overrides)
+
+        stages = dict(flat.get("stages", {}))
+        table_path = flat.get("photometry_table_path")
+        if stages.get("photometry", False) and (table_path is None or not Path(table_path).expanduser().exists()):
+            logger.warning(f"Photometry table {table_path} not found; turning off the photometry stage.")
+            stages["photometry"] = False
+            flat["stages"] = stages
+
+        return cls(**flat)
+
+
+def _from_hdf5_value(value: Any) -> Any:
+    """
+    Converts a config value stored as a HDF5 attribute back to its Python form: arrays to lists, numpy scalars to
+    Python ones, and the string 'None' (how None and unset paths are stored) to None.
+
+    AI-generated: claude-opus-5-5
+    """
+    if isinstance(value, np.ndarray):
+        return [_from_hdf5_value(entry) for entry in value.tolist()]
+    if isinstance(value, bytes):
+        value = value.decode()
+    if isinstance(value, np.generic):
+        value = value.item()
+    if value == "None":
+        return None
+
+    return value
+
 
 def _flatten_config(raw: dict) -> dict:
     """
@@ -409,6 +482,62 @@ CODE_UNITS = {
     "bhmdot": DatasetUnits(unit=(u.M_sun / u.yr)),  # solar masses/yr
     "smoothing_length": DatasetUnits(unit=u.kpc, a_exponent=1),  # ckpc
 }
+
+# element symbols keyed by their full names (as SWIFT names its element columns), up to germanium to cover Chem5
+ELEMENT_SYMBOLS = {
+    "Hydrogen": "H",
+    "Helium": "He",
+    "Lithium": "Li",
+    "Beryllium": "Be",
+    "Boron": "B",
+    "Carbon": "C",
+    "Nitrogen": "N",
+    "Oxygen": "O",
+    "Fluorine": "F",
+    "Neon": "Ne",
+    "Sodium": "Na",
+    "Magnesium": "Mg",
+    "Aluminium": "Al",
+    "Aluminum": "Al",
+    "Silicon": "Si",
+    "Phosphorus": "P",
+    "Sulfur": "S",
+    "Sulphur": "S",
+    "Chlorine": "Cl",
+    "Argon": "Ar",
+    "Potassium": "K",
+    "Calcium": "Ca",
+    "Scandium": "Sc",
+    "Titanium": "Ti",
+    "Vanadium": "V",
+    "Chromium": "Cr",
+    "Manganese": "Mn",
+    "Iron": "Fe",
+    "Cobalt": "Co",
+    "Nickel": "Ni",
+    "Copper": "Cu",
+    "Zinc": "Zn",
+    "Gallium": "Ga",
+    "Germanium": "Ge",
+}
+
+
+def element_fraction_name(symbol: str) -> str:
+    """
+    Returns the Octavius name of the mass fraction of an element (e.g. 'O' -> 'fraction_O').
+
+    AI-generated: claude-opus-5-5
+    """
+    return f"fraction_{symbol}"
+
+
+# element mass fractions are dimensionless
+CODE_UNITS.update(
+    {
+        element_fraction_name(symbol): DatasetUnits(unit=u.dimensionless_unscaled)
+        for symbol in set(ELEMENT_SYMBOLS.values())
+    }
+)
 
 # TODO: allow particle float datasets to be dropped to 32-bit in config, hardcode ID datatypes
 DTYPES = {

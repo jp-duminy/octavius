@@ -14,4 +14,4 @@ The synthetic snapshot generator used to create test catalogues is also provided
 
 ## Catalogue Repacking
 
-Another utility function called `repack_catalogue()` is provided with the purpose of compressing Octavius catalogues with GZIP compression. This is a small utility which calls `h5repack` with the requested GZIP compression level using the default library `subprocess`, and replaces the catalogue with the repacked version. This can be used to further compress catalogues beyond the GZIP-4 compression provided by the `compress_catalogue` flag in the configuration file.
+Another utility function called `repack_catalogue()` is provided with the purpose of compressing Octavius catalogues with GZIP compression. This is a small utility which calls `h5repack` with the requested GZIP compression level using the default library `subprocess`, and replaces the catalogue with the repacked version. This can be used to further compress catalogues beyond the shuffle + GZIP-1 compression provided by the `compress_catalogue` flag in the configuration file.

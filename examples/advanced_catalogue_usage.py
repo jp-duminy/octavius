@@ -5,11 +5,11 @@ Advanced indexing and membership access with catalogues.
 """
 
 from pathlib import Path
-import h5py
 import numpy as np
 import octavius as oc
 
 catalogue_path = Path("/path/to/catalogue.hdf5")
+snapshot_path = Path("/path/to/snapshot.hdf5")  # the raw snapshot the catalogue was made from
 
 catalogue = oc.load_catalogue(catalogue_path=catalogue_path)
 
@@ -44,22 +44,19 @@ child_metal_weighted_ages = catalogue.galaxies.get_dataset(  # I want to know th
     mask=child_gal_idx,
 )
 
-# I'm forming my analysis and want to grab some cosmological info from the cataloguealogue
+# I'm forming my analysis and want to grab some cosmological info from the catalogue
 print(catalogue.sim_info.keys())  # let's see what's available
 
 Hz = catalogue.sim_info("Hz")
 print(catalogue.sim_info.description("Hz"))
 boxsize = catalogue.sim_info("boxsize", to_units="Mpc", physical=True)
 scale_factor = catalogue.sim_info("scale_factor")
-scale_factor = catalogue.scale_factor  # this one is also on the cataloguealogue object for convenience
+scale_factor = catalogue.scale_factor  # this one is also on the catalogue object for convenience
 
-# now we want to compute a new property, the oxygen metallicity, of the galaxies in halo 23 which are > 9Gyr old
-
-raw_snap = Path("/path/to/snapshot.hdf5")
-
-with h5py.File(raw_snap, "r") as snap:
-    oxygen = snap["metallicity"][:]
-    sfr = snap["sfr"][:]
+# now we want to compute a new property, the SFR-weighted oxygen mass fraction, of the galaxies in halo 23 which are
+# > 9 Gyr old; particle data is read from the raw snapshot through an analyser, which uses the config stored in the
+# catalogue unless given one (snapshot_path is only needed if the snapshot has moved since the catalogue was made)
+analyser = oc.build_analyser(catalogue=catalogue, snapshot_path=snapshot_path)
 
 age_mask = child_metal_weighted_ages > 9  # galaxies with metal-weighted mean ages greater than 9 Gyr
 idx_of_interest = child_gal_idx[age_mask]  # their indices
@@ -67,18 +64,22 @@ idx_of_interest = child_gal_idx[age_mask]  # their indices
 Z_oxy = np.empty(shape=len(idx_of_interest), dtype=np.float64)
 
 for i, gal_idx in enumerate(idx_of_interest):
-    snap_idx = catalogue.galaxies.get_particle_indices(
-        ptype="gas", group_index=gal_idx
-    )  # retrieve their particle-level indices
-    Z_oxy[i] = np.sum(oxygen[snap_idx] * sfr[snap_idx]) / np.sum(sfr[snap_idx])
+    # individual elements are read as fraction_<symbol>; asking for one the snapshot lacks lists those it has
+    oxygen = analyser.get_particle_data(name="fraction_O", ptype="gas", group_indices=gal_idx)
+    sfr = analyser.get_particle_data(name="sfr", ptype="gas", group_indices=gal_idx)
+    Z_oxy[i] = np.sum(oxygen * sfr) / np.sum(sfr)
 
-# or, alternatively, for every galaxy
-all_indices, all_offsets = (
-    catalogue.galaxies.get_membership("gas_indices"),
-    catalogue.galaxies.get_membership("gas_offsets"),
-)
-starts = all_offsets[:-1]  # ignore last element of offsets (it tells you where the last group ends)
-numerator = np.add.reduceat(oxygen[all_indices] * sfr[all_indices], starts)
-denominator = np.add.reduceat(sfr[all_indices], starts)
+# or, alternatively, for every galaxy at once: passing several indices returns all their particles one after another,
+# plus offsets such that values[offsets[i] : offsets[i + 1]] belongs to the i-th galaxy
+all_gal_idx = np.arange(len(catalogue.galaxies))
+oxygen, offsets = analyser.get_particle_data(name="fraction_O", ptype="gas", group_indices=all_gal_idx)
+sfr, _ = analyser.get_particle_data(name="sfr", ptype="gas", group_indices=all_gal_idx)
 
-Z_oxy = numerator / denominator  # final quantity, vectorised
+# sum over each galaxy's particles (bincount gives 0 for a galaxy with no gas, unlike np.add.reduceat)
+galaxy_of_particle = np.repeat(all_gal_idx, np.diff(offsets))
+numerator = np.bincount(galaxy_of_particle, weights=oxygen * sfr, minlength=len(all_gal_idx))
+denominator = np.bincount(galaxy_of_particle, weights=sfr, minlength=len(all_gal_idx))
+
+Z_oxy = numerator / denominator  # final quantity, vectorised (NaN for galaxies with no star-forming gas)
+
+catalogue.close()

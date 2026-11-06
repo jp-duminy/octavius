@@ -39,9 +39,7 @@ def run_ptype_specific_properties(simulation_data: SimulationData, config: Octav
     constants = simulation_data.constants
 
     for group_type in simulation_data.groups:
-        logger.info(
-            f"Running particle-specific properties for {group_type}: {simulation_data.groups[group_type].n_groups:,} members"
-        )
+        logger.info(f"Running particle-specific properties for {group_type}.")
 
         group_store = simulation_data.groups[group_type]
         n_groups = group_store.n_groups

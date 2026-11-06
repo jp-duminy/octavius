@@ -17,7 +17,7 @@ from tests.validation.output_validation import (
     validate_halo_membership,
     validate_mass_budget,
 )
-from octavius import load_catalogue
+from octavius import load_catalogue, build_analyser, OctaviusConfig
 
 CONFIG_PATH = Path(__file__).parent.parent / "octavius" / "config.yaml"
 
@@ -117,3 +117,52 @@ def test_loader(mock_catalogue: h5py.File) -> None:
     assert isinstance(boxsize, float)
 
     cat.close()
+
+
+def test_get_particle_data(mock_catalogue: h5py.File) -> None:
+    """
+    Tests whether the analyser returns the right particle values for groups in the catalogue.
+
+    AI-generated: claude-opus-5-5
+    """
+    cat = load_catalogue(Path(mock_catalogue.filename))
+    analyser = build_analyser(catalogue=cat)  # uses the config stored in the catalogue
+
+    # one galaxy: compare against reading the whole snapshot dataset and indexing it ourselves
+    star_mass = analyser.get_particle_data(name="mass", ptype="star", group_indices=0)
+    all_star_mass = analyser._reader.read_full_dataset(ptype="star", dataset="mass")
+    snapshot_indices = cat.galaxies.get_particle_indices(ptype="star", group_index=0)
+    np.testing.assert_allclose(star_mass, all_star_mass[snapshot_indices])
+
+    # the summed particle masses should match the catalogue stellar mass
+    catalogue_star_mass = cat.galaxies.get_dataset("mass_star", to_units="Msun", to_physical=True)
+    star_mass_kg = analyser.get_particle_data(name="mass", ptype="star", group_indices=0, to_units="kg")
+    np.testing.assert_allclose(star_mass_kg.sum(), catalogue_star_mass[0] * 1.98841e30, rtol=1e-4)
+
+    # several groups, including a repeated one (groups can share particles)
+    values, offsets = analyser.get_particle_data(name="mass", ptype="star", group_indices=[0, 0])
+    np.testing.assert_array_equal(offsets, [0, len(star_mass), 2 * len(star_mass)])
+    np.testing.assert_allclose(values[offsets[1] : offsets[2]], star_mass)
+
+    cat.close()
+
+
+def test_config_from_catalogue(mock_catalogue: h5py.File) -> None:
+    """
+    Tests whether the config stored in the catalogue is rebuilt as it was given to the pipeline (see conftest.py).
+
+    AI-generated: claude-opus-5-5
+    """
+    config = OctaviusConfig.from_catalogue(mock_catalogue.filename)
+    assert config.simulation_type == mock_catalogue["metadata"].attrs["simulation_type"]
+    assert config.min_stars_per_galaxy == 2
+    assert config.b == 1.5
+    assert config.subhalo_override is True
+    assert config.compress_catalogue is False
+    assert config.stages["photometry"] is True
+    assert isinstance(config.virial_factors, list)
+    assert isinstance(config.snapshot_path, Path)
+
+    # a photometry table which cannot be found turns off photometry
+    config = OctaviusConfig.from_catalogue(mock_catalogue.filename, photometry_table_path="/does/not/exist.hdf5")
+    assert config.stages["photometry"] is False

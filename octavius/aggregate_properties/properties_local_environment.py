@@ -39,7 +39,7 @@ def run_local_environment(simulation_data: SimulationData, config: OctaviusConfi
     galaxies = simulation_data.groups["galaxies"]
     haloes = simulation_data.groups["haloes"]
     particles = simulation_data.particles
-    logger.info(f"Running local environment properties for galaxies: {galaxies.n_groups:,} members")
+    logger.info("Running local environment properties for galaxies.")
     sim = simulation_data.simulation
 
     n_field_haloes = np.sum(haloes["depth"] == 0)  # works by construction of the groupstore

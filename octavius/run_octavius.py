@@ -17,11 +17,18 @@ if TYPE_CHECKING:
 from pathlib import Path
 import argparse
 import shutil
+import sys
 from dataclasses import replace
 from contextlib import contextmanager
 from time import perf_counter
 
+try:  # Unix only: Windows has no resource module, and then peak memory is not reported
+    import resource
+except ImportError:
+    resource = None
+
 # other packages
+import h5py
 import numpy as np
 import numba
 
@@ -255,6 +262,14 @@ def execute_pipeline(
                 group_kind=internals.group_types["galaxies"]["kind"],
             )
 
+    # per-rank counts for checking the load balance: debug level, so in the rank logs but not the terminal
+    depth = groups["haloes"]["depth"]
+    n_galaxies_on_rank = groups["galaxies"].n_groups if "galaxies" in groups else 0
+    get_logger().debug(
+        f"{n_galaxies_on_rank:,} galaxies, {int(np.sum(depth == 0)):,} haloes and {int(np.sum(depth > 0)):,} subhaloes "
+        "on this rank."
+    )
+
     with timer("Prepare pipeline", timings=timings):
         simulation_data = SimulationData(simulation=sim, constants=constants, particles=particles, groups=groups)
         assign_membership(simulation_data=simulation_data, subhalo_info=subhalo_info, config=config)
@@ -476,12 +491,22 @@ def analyse_snapshot(
 
     catalogue_path = output_catalogue_path(snapshot_path=config.snapshot_path, output_dir=config.output_dir)
 
-    write_catalogue(
-        packed_data=packed_data,
-        catalogue_path=catalogue_path,
-        internals=internals,
-        comm=comm,
-    )
+    with timer("Write catalogue", timings=timings):
+        write_catalogue(
+            packed_data=packed_data,
+            catalogue_path=catalogue_path,
+            internals=internals,
+            comm=comm,
+        )
+        if rank == 0:
+            write_catalogue_headers(
+                catalogue_path=catalogue_path,
+                snapshot_path=config.snapshot_path,
+                config=config,
+                internals=internals,
+                sim_attrs=reader.simulation_attributes,
+                n_ranks=size,
+            )
 
     # diagnostics
     if comm is not None:
@@ -489,36 +514,62 @@ def analyse_snapshot(
     else:
         all_timings = [timings]
 
+    # each process's peak memory, gathered for the summary (None on Windows)
+    peak_memory = _peak_memory_gb()
+    all_peak_memory = comm.gather(peak_memory, root=0) if comm is not None else [peak_memory]
+
     if rank == 0:
-        write_catalogue_headers(
+        if config.compress_catalogue:
+            try:
+                with timer("Compress catalogue", timings=all_timings[0]):  # rank 0 alone
+                    repack_catalogue(catalogue_path)
+            except FileNotFoundError:
+                logger.warning("h5repack not available; indices in catalogue are uncompressed.")
+
+        output_summary(
+            all_timings=all_timings,
             catalogue_path=catalogue_path,
-            snapshot_path=config.snapshot_path,
-            config=config,
-            internals=internals,
-            sim_attrs=reader.simulation_attributes,
             n_ranks=size,
+            peak_memory=None if None in all_peak_memory else all_peak_memory,
+            group_counts=_count_catalogue_groups(catalogue_path),
+        )
+        clean_logs(
+            output_dir=config.output_dir,
+            snapshot_path=config.snapshot_path,
+            n_ranks=size,
+            keep_logs=config.keep_logs,
         )
 
-        if rank == 0:
-            if config.compress_catalogue:
-                try:
-                    repack_catalogue(catalogue_path)
-                except FileNotFoundError:
-                    logger.warning("h5repack not available; indices in catalogue are uncompressed.")
-
-            output_summary(
-                all_timings=all_timings,
-                catalogue_path=catalogue_path,
-                n_ranks=size,
-            )
-            clean_logs(
-                output_dir=config.output_dir,
-                snapshot_path=config.snapshot_path,
-                n_ranks=size,
-                keep_logs=config.keep_logs,
-            )
-
     return catalogue_path
+
+
+def _peak_memory_gb() -> float | None:
+    """
+    Returns this process's peak memory (maximum resident set size) in GB, which the kernel tracks at no cost, or None
+    where it is unavailable (Windows). ru_maxrss is in kB on Linux but in bytes on macOS.
+
+    AI-generated: claude-opus-5-5
+    """
+    if resource is None:
+        return None
+
+    max_rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    bytes_per_unit = 1 if sys.platform == "darwin" else 1024
+    return max_rss * bytes_per_unit / 1024**3
+
+
+def _count_catalogue_groups(catalogue_path: Path) -> tuple[int, int, int]:
+    """
+    Returns the numbers of galaxies, field haloes and subhaloes in a finished catalogue, for the run summary.
+
+    AI-generated: claude-opus-5-5
+    """
+    with h5py.File(catalogue_path, "r") as f:
+        n_galaxies = len(f["galaxy_data/membership/field_halo_index"]) if "galaxy_data" in f else 0
+        depth = f["halo_data/membership/depth"][...] if "halo_data" in f else np.zeros(0, dtype=np.int64)
+
+    n_field_haloes = int(np.sum(depth == 0))
+    return n_galaxies, n_field_haloes, len(depth) - n_field_haloes
 
 
 def generate_config(output_dir: Path | str = Path(".")) -> None:

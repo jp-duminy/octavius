@@ -262,6 +262,14 @@ def execute_pipeline(
                 group_kind=internals.group_types["galaxies"]["kind"],
             )
 
+    # per-rank counts for checking the load balance: debug level, so in the rank logs but not the terminal
+    depth = groups["haloes"]["depth"]
+    n_galaxies_on_rank = groups["galaxies"].n_groups if "galaxies" in groups else 0
+    get_logger().debug(
+        f"{n_galaxies_on_rank:,} galaxies, {int(np.sum(depth == 0)):,} haloes and {int(np.sum(depth > 0)):,} subhaloes "
+        "on this rank."
+    )
+
     with timer("Prepare pipeline", timings=timings):
         simulation_data = SimulationData(simulation=sim, constants=constants, particles=particles, groups=groups)
         assign_membership(simulation_data=simulation_data, subhalo_info=subhalo_info, config=config)

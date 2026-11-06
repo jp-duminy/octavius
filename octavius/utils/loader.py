@@ -161,6 +161,8 @@ class GroupCollection:
         Get the code units of a dataset as stored in the catalogue.
     is_comoving(name)
         Returns whether a dataset in the catalogue is stored in comoving coordinates.
+    get_attributes(name)
+        Get the HDF5 attributes (unit, a_exp, description) of a dataset.
     get_membership(name, group_index, verbose)
         Read a single membership dataset with the option of retrieving it for a single group.
     get_galaxies(halo_index)
@@ -312,6 +314,23 @@ class GroupCollection:
         """
         dataset = self._data[f"properties/{self._dataset_paths[name]}"]
         return dataset.attrs["a_exp"] != 0
+
+    def get_attributes(self, name: str) -> dict:
+        """
+        Returns the HDF5 attributes (unit, a_exp, description) of a dataset in the catalogue.
+
+        Parameters
+        ----------
+        name: str
+            The catalogue name of the dataset.
+
+        Returns
+        -------
+        attributes: dict
+            The dataset attributes.
+        """
+        dataset = self._data[f"properties/{self._dataset_paths[name]}"]
+        return dict(dataset.attrs)
 
     def get_datasets(
         self,

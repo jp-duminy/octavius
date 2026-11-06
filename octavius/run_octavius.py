@@ -16,11 +16,16 @@ if TYPE_CHECKING:
 # default libraries
 from pathlib import Path
 import argparse
-import resource
 import shutil
+import sys
 from dataclasses import replace
 from contextlib import contextmanager
 from time import perf_counter
+
+try:  # Unix only: Windows has no resource module, and then peak memory is not reported
+    import resource
+except ImportError:
+    resource = None
 
 # other packages
 import h5py
@@ -501,8 +506,8 @@ def analyse_snapshot(
     else:
         all_timings = [timings]
 
-    # each process's peak memory (max resident set size, in kB on Linux), which the kernel tracks at no cost
-    peak_memory = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024**2  # GB
+    # each process's peak memory, gathered for the summary (None on Windows)
+    peak_memory = _peak_memory_gb()
     all_peak_memory = comm.gather(peak_memory, root=0) if comm is not None else [peak_memory]
 
     if rank == 0:
@@ -517,7 +522,7 @@ def analyse_snapshot(
             all_timings=all_timings,
             catalogue_path=catalogue_path,
             n_ranks=size,
-            peak_memory=all_peak_memory,
+            peak_memory=None if None in all_peak_memory else all_peak_memory,
             group_counts=_count_catalogue_groups(catalogue_path),
         )
         clean_logs(
@@ -528,6 +533,21 @@ def analyse_snapshot(
         )
 
     return catalogue_path
+
+
+def _peak_memory_gb() -> float | None:
+    """
+    Returns this process's peak memory (maximum resident set size) in GB, which the kernel tracks at no cost, or None
+    where it is unavailable (Windows). ru_maxrss is in kB on Linux but in bytes on macOS.
+
+    AI-generated: claude-opus-5-5
+    """
+    if resource is None:
+        return None
+
+    max_rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    bytes_per_unit = 1 if sys.platform == "darwin" else 1024
+    return max_rss * bytes_per_unit / 1024**3
 
 
 def _count_catalogue_groups(catalogue_path: Path) -> tuple[int, int, int]:

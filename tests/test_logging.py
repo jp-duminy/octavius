@@ -1,6 +1,6 @@
 """
 
-Tests the logger's per-rank terminal output.
+Tests the logger's per-rank terminal output and the peak memory reported in the run summary.
 
 """
 
@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from octavius import run_octavius
 from octavius.log import SAME_ON_ALL_RANKS, configure_logger
 
 
@@ -32,3 +33,22 @@ def test_messages_common_to_all_ranks_shown_once(rank: int, capsys: pytest.Captu
     terminal = capsys.readouterr().err
     assert ("common to all ranks" in terminal) == (rank == 0)
     assert "specific to this rank" in terminal
+
+
+def test_peak_memory() -> None:
+    """
+    Peak memory is a sensible number of GB on Linux and macOS (whose ru_maxrss units differ), and None on Windows.
+    """
+    peak = run_octavius._peak_memory_gb()
+    if run_octavius.resource is None:
+        assert peak is None
+    else:
+        assert 0.01 < peak < 100  # a Python test process uses tens to hundreds of MB
+
+
+def test_peak_memory_without_resource_module(monkeypatch: pytest.MonkeyPatch) -> None:
+    """
+    Without the resource module (as on Windows), peak memory is None rather than an error.
+    """
+    monkeypatch.setattr(run_octavius, "resource", None)
+    assert run_octavius._peak_memory_gb() is None

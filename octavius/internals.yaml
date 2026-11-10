@@ -78,6 +78,7 @@ stages:
         applies_to: [haloes]
       - columns: ["metallicity_star_mass_weighted", "age_star_mass_weighted", "age_star_metal_weighted"]
       - columns: ["smbh_mass", "smbh_mdot", "smbh_fedd"]
+      - columns: ["L_radio_sf", "L_radio_agn"]
 
   properties_local_environment:
     label: environment
@@ -402,6 +403,18 @@ output_columns:
     unit:        "Msun"
     a_exp:       0
     description: "Mass of the most massive black hole."
+
+  L_radio_sf:
+    dtype:       float64
+    unit:        "W/Hz"
+    a_exp:       0
+    description: "1.4 GHz radio luminosity from star formation (Condon 1992, as in Thomas et al. 2021)."
+
+  L_radio_agn:
+    dtype:       float64
+    unit:        "W/Hz"
+    a_exp:       0
+    description: "1.4 GHz core radio luminosity of the black holes with jets (Kording et al. 2008, as in Thomas et al. 2021)."
 
   # end only black holes
 

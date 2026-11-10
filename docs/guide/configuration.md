@@ -91,6 +91,16 @@ Please note disabling a particle entirely may have unintended consequences: for 
 
 `MU`: the mean molecular weight, used for the virial temperature scaling relation (default: `0.6`).
 
+## Radio Parameters
+
+These set the 1.4 GHz radio luminosities `L_radio_sf` and `L_radio_agn` (Thomas et al. 2021).
+
+`sfr_massive_star_fraction`: the fraction of the star formation rate forming stars more massive than 5 $M_\odot$, which sets the radio emission from star formation (default: `0.290`, for a Chabrier 2003 IMF from 0.1 to 100 $M_\odot$).
+
+`jet_bh_mass_min`: the black hole mass, in $M_\odot$, above which black holes can have jets and contribute to `L_radio_agn` (default: `1.0e8`).
+
+`jet_fedd_max`: the Eddington fraction below which (and above zero) black holes have jets (default: `0.02`).
+
 ## FOF6D Parameters
 
 `b`: the scaling factor used to determine the position-space linking length, which is defined as $b \times \lambda$, where $\lambda$ is the mean interparticle separation (default: `0.02`).

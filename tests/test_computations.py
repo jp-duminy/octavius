@@ -30,6 +30,7 @@ from octavius.aggregate_properties.aggregate_helpers import (
 
 from octavius.aggregate_properties.properties_core import _combine_centre_of_mass
 from octavius.aggregate_properties.properties_local_environment import distribute_halo_hydrogen
+from octavius.aggregate_properties.properties_ptype_specific import compute_radio_agn, compute_radio_sf
 
 
 from octavius.data_management import (
@@ -458,3 +459,32 @@ def test_halo_gas_redistribution() -> None:
     np.testing.assert_allclose(
         assigned_H2[0], np.sum(gas_mass_H2), err_msg="test_halo_gas_redistribution failed: not all H2 went to galaxy."
     )
+
+
+def test_radio_luminosities() -> None:
+    """
+    Tests the 1.4 GHz radio luminosities against values computed by hand from Thomas et al. (2021): star formation
+    from Condon (1992) with 29% of the SFR in stars above 5 Msun, and the core emission of black holes with jets
+    (M_BH > 1e8 Msun, 0 < f_Edd < 0.02) from Kording et al. (2008), summed over each group's black holes.
+    """
+    constants = OctaviusConstants()
+
+    L_sf = compute_radio_sf(sfr=np.array([0.0, 1.0, 2.0]), massive_star_fraction=0.29, constants=constants)
+    np.testing.assert_allclose(L_sf["L_radio_sf"], [0.0, 1.3285e21, 2 * 1.3285e21], rtol=1e-4)
+
+    # group 0: a jet BH accreting 1 Msun/yr (f_Edd = 0.0045) and one above the f_Edd limit (0.045)
+    # group 1: a jet BH accreting 0.1 Msun/yr (f_Edd = 0.0045), one below the mass limit, one not accreting
+    # group 2: no black holes
+    masses = np.array([1e10, 1e10, 1e9, 5e7, 1e9])
+    bhmdots = np.array([1.0, 10.0, 0.1, 0.001, 0.0])
+    L_agn = compute_radio_agn(
+        masses=masses,
+        bhmdots=bhmdots,
+        offsets=np.array([0, 2, 5, 5]),
+        idx_sorted=np.arange(5),
+        n_groups=3,
+        jet_bh_mass_min=1e8,
+        jet_fedd_max=0.02,
+        constants=constants,
+    )
+    np.testing.assert_allclose(L_agn["L_radio_agn"], [2.9294e25, 1.1223e24, 0.0], rtol=1e-3)

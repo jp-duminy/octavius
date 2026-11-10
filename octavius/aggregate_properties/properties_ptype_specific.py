@@ -5,6 +5,7 @@ Particle type-specific aggregate properties. For example:
 - Hydrogen mass fractions (gas)
 - Star formation histories (stars)
 - Eddington fractions (black holes)
+- 1.4 GHz radio luminosities from star formation (gas) and jets (black holes)
 
 In practice this file exists more for modularity purposes; it is by far the lightest stage
 of the pipeline at present.
@@ -15,7 +16,7 @@ of the pipeline at present.
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ..data_management import SimulationData, OctaviusConfig
+    from ..data_management import SimulationData, OctaviusConfig, OctaviusConstants
 
 # other packages
 import numpy as np
@@ -71,6 +72,13 @@ def run_ptype_specific_properties(simulation_data: SimulationData, config: Octav
                 Tlim=config.T_lim,
             )
             group_store.write_batch(results=gas_results)
+            group_store.write_batch(
+                results=compute_radio_sf(
+                    sfr=gas_results["sfr"],
+                    massive_star_fraction=config.sfr_massive_star_fraction,
+                    constants=constants,
+                )
+            )
 
             if group_store.kind == "halo":
                 cgm_results = compute_cgm_properties(
@@ -124,6 +132,17 @@ def run_ptype_specific_properties(simulation_data: SimulationData, config: Octav
                 edd_factor=constants.EDD_FACTOR,
             )
             group_store.write_batch(results=bh_results)
+            radio_agn_results = compute_radio_agn(
+                masses=bh["bhmass"],
+                bhmdots=bh["bhmdot"],
+                offsets=bh_offsets,
+                idx_sorted=bh_idx,
+                n_groups=n_groups,
+                jet_bh_mass_min=config.jet_bh_mass_min,
+                jet_fedd_max=config.jet_fedd_max,
+                constants=constants,
+            )
+            group_store.write_batch(results=radio_agn_results)
 
         logger.info(f"Particle-specific properties computed for {group_type}.")
 
@@ -299,3 +318,54 @@ def compute_bh_properties(
     results["smbh_mass"] = smbh_mass
 
     return results
+
+
+def compute_radio_sf(
+    sfr: np.ndarray,
+    massive_star_fraction: float,
+    constants: OctaviusConstants,
+) -> dict[str, np.ndarray]:
+    """
+    Computes the 1.4 GHz radio luminosity from star formation (W/Hz), following Thomas et al. (2021): the
+    non-thermal and thermal emission of Condon (1992), proportional to the rate of forming stars above 5 Msun, which
+    is massive_star_fraction times the total SFR (0.290 for a Chabrier 2003 IMF).
+
+    AI-generated: claude-opus-5-5
+    """
+    nu = constants.RADIO_FREQUENCY_GHZ
+    luminosity_per_sfr = constants.CONDON_NONTHERMAL_W_HZ * nu**-0.8 + constants.CONDON_THERMAL_W_HZ * nu**-0.1
+
+    return {"L_radio_sf": luminosity_per_sfr * massive_star_fraction * sfr}
+
+
+def compute_radio_agn(
+    masses: np.ndarray,
+    bhmdots: np.ndarray,
+    offsets: np.ndarray,
+    idx_sorted: np.ndarray,
+    n_groups: int,
+    jet_bh_mass_min: float,
+    jet_fedd_max: float,
+    constants: OctaviusConstants,
+) -> dict[str, np.ndarray]:
+    """
+    Computes the 1.4 GHz core radio luminosity of each group's black holes with jets (W/Hz), following Thomas et al.
+    (2021): a black hole has jets if its mass exceeds jet_bh_mass_min and 0 < f_Edd < jet_fedd_max, and then emits
+    nu * P_nu = 1e30 erg/s (Mdot / 4e17 g/s)^(17/12) (Kording et al. 2008). The luminosities of all of a group's black
+    holes with jets are summed. Mdot is the snapshot's (instantaneous) accretion rate, where Thomas et al. averaged
+    it over the past 50 Myr.
+
+    AI-generated: claude-opus-5-5
+    """
+    fedd = guarded_divide(numerator=bhmdots, denominator=(constants.EDD_FACTOR * masses))
+    has_jets = (masses > jet_bh_mass_min) & (fedd > 0.0) & (fedd < jet_fedd_max)
+
+    mdot_g_per_s = np.where(has_jets, bhmdots, 0.0) * constants.MSUN_PER_YR_TO_G_PER_S
+    core_power_erg_per_s = constants.KORDING_POWER_ERG_S * (mdot_g_per_s / constants.KORDING_MDOT_G_S) ** (
+        constants.KORDING_INDEX
+    )
+    frequency_hz = constants.RADIO_FREQUENCY_GHZ * 1.0e9
+    luminosity_w_per_hz = np.where(has_jets, core_power_erg_per_s / frequency_hz * 1.0e-7, 0.0)  # erg/s -> W
+
+    L_radio_agn = sum_per_group(values=luminosity_w_per_hz, offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups)
+    return {"L_radio_agn": L_radio_agn}

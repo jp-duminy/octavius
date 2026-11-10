@@ -26,7 +26,7 @@ logger = get_logger()
 
 # for config parsing
 CONFIG_FIELDS = frozenset(
-    {"thresholds", "physics", "fof6d", "fof_haloes", "properties", "photometry", "parallelism", "logging"}
+    {"thresholds", "physics", "radio", "fof6d", "fof_haloes", "properties", "photometry", "parallelism", "logging"}
 )
 FILEPATHS = frozenset({"snapshot_path", "output_dir", "halo_catalogue_path", "photometry_table_path"})
 VALID_SIM_TYPES = frozenset({"SIMBA", "SIMBA-C", "SWIFT-KIARA", "SWIFT-EAGLE", "SWIFT-COLIBRE", "TNG"})
@@ -39,7 +39,18 @@ VALID_VIEW_AXES = frozenset({"X", "Y", "Z"})
 BARYONIC_PTYPES = frozenset({"gas", "star", "bh"})
 VALID_GAS_CRITERIA = frozenset({"COLD", "STARFORMING", "COLD_OR_STARFORMING", "DENSE_ONLY"})
 ALWAYS_POSITIVE = frozenset(
-    {"b", "halo_b", "velocity_factor", "n_io_chunks", "interpolation_bins", "aperture_size", "virial_factors"}
+    {
+        "b",
+        "halo_b",
+        "velocity_factor",
+        "n_io_chunks",
+        "interpolation_bins",
+        "aperture_size",
+        "virial_factors",
+        "sfr_massive_star_fraction",
+        "jet_bh_mass_min",
+        "jet_fedd_max",
+    }
 )
 
 VALID_ENTRIES: dict[str, frozenset[str]] = {
@@ -117,6 +128,10 @@ class OctaviusConfig:
     T_lim: float = 1.0e5
     FRAD: float = 0.1
     MU: float = 0.6
+
+    sfr_massive_star_fraction: float = 0.290  # SFR in stars >= 5 Msun / total SFR (Chabrier 2003 IMF, 0.1-100 Msun)
+    jet_bh_mass_min: float = 1.0e8  # Msun; black holes counted as radio AGN (jets) above this mass...
+    jet_fedd_max: float = 0.02  # ...and with 0 < f_Edd below this (Thomas et al. 2021)
 
     radial_quantiles: dict[str, float] = field(
         default_factory=lambda: {
@@ -393,6 +408,15 @@ class OctaviusConstants:
 
     # derived unit conversions
     G_VCIRC: float = codata.G.to(u.km**2 * u.kpc / (u.M_sun * u.s**2)).value
+    MSUN_PER_YR_TO_G_PER_S: float = (1 * u.M_sun / u.yr).to(u.g / u.s).value
+
+    # 1.4 GHz radio luminosity relations (Thomas et al. 2021, MNRAS 503, 3492)
+    RADIO_FREQUENCY_GHZ: float = 1.4
+    CONDON_NONTHERMAL_W_HZ: float = 5.3e21  # W/Hz per Msun/yr of SFR(>= 5 Msun) at 1 GHz, spectral index -0.8
+    CONDON_THERMAL_W_HZ: float = 5.5e20  # likewise for thermal emission, spectral index -0.1 (Condon 1992)
+    KORDING_POWER_ERG_S: float = 1.0e30  # core radio power nu * P_nu = 1e30 erg/s (Mdot / 4e17 g/s)^(17/12)
+    KORDING_MDOT_G_S: float = 4.0e17  # (Kording, Jester & Fender 2008)
+    KORDING_INDEX: float = 17 / 12
 
     # derived factors
     VIRIAL_TEMP_FACTOR: float = field(init=False)

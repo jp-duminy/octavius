@@ -34,6 +34,12 @@ physics:
   MU:     0.6  # mean mass per-particle (gas)
 
 
+radio:  # 1.4 GHz radio luminosities L_radio_sf and L_radio_agn, following Thomas et al. (2021)
+  sfr_massive_star_fraction:  0.290     # fraction of the SFR forming stars >= 5 Msun (Chabrier 2003 IMF)
+  jet_bh_mass_min:            1.0e+8    # Msun; black holes above this mass with 0 < f_Edd < jet_fedd_max have jets
+  jet_fedd_max:               0.02
+
+
 fof6d:
   b:                0.02                    # position-space linking length = b * mean_interparticle_separation
   velocity_factor:  1                       # velocity-space linking length = velocity_factor * local_velocity_dispersion

@@ -128,6 +128,12 @@ Black holes:
 
 - `smbh_mdot`: the accretion rate of the most massive black hole.
 
+Radio:
+
+- `L_radio_sf`: the 1.4 GHz radio luminosity from star formation, in W/Hz, following Thomas et al. (2021): the non-thermal and thermal emission of Condon (1992), proportional to the rate of forming stars more massive than 5 $M_\odot$, taken as `sfr_massive_star_fraction` times `sfr`.
+
+- `L_radio_agn`: the 1.4 GHz core radio luminosity of black holes with jets, in W/Hz, following Thomas et al. (2021): $\nu P_\nu = 10^{30} (\dot{M}_{\rm BH} / 4 \times 10^{17}\,{\rm g\,s^{-1}})^{17/12}$ erg/s (Körding et al. 2008), summed over the black holes with $M_{\rm BH} >$ `jet_bh_mass_min` and $0 < f_{\rm Edd} <$ `jet_fedd_max`. $\dot{M}_{\rm BH}$ is the snapshot's instantaneous accretion rate, whereas Thomas et al. averaged it over the past 50 Myr, so expect more scatter.
+
 ### Halo outputs
 
 Gas properties are also computed for the halo CGM, which is defined as being gas with density below `nH_lim` in the configuration file:
